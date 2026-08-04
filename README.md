@@ -25,3 +25,5 @@ npm run dev
 ## Metodologia
 
 O jogo é desenvolvido por **Vertical Slice**: cada bioma (região do continente) é tratado como um mini-projeto isolado, com documentação própria antes de qualquer asset ou código ser produzido. Documentação completa mantida separadamente.
+
+<!-- trigger deploy: Pages habilitado via GitHub Actions -->
