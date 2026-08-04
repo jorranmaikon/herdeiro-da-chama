@@ -22,6 +22,10 @@ npm install
 npm run dev
 ```
 
+## Documentação
+
+📖 Documentação completa do projeto (Game Bible, Lore, Continente, sistemas de gameplay, arquitetura técnica e Vertical Slices): **[jorranmaikon.github.io/herdeiro-da-chama/docs/](https://jorranmaikon.github.io/herdeiro-da-chama/docs/)**
+
 ## Metodologia
 
 O jogo é desenvolvido por **Vertical Slice**: cada bioma (região do continente) é tratado como um mini-projeto isolado, com documentação própria antes de qualquer asset ou código ser produzido. Documentação completa mantida separadamente.
