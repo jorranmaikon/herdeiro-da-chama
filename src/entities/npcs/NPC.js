@@ -27,8 +27,8 @@ export default class NPC extends Phaser.Physics.Arcade.Sprite {
     this.lines = config.lines ?? [];
     this.interactRadius = config.interactRadius ?? 110;
 
-    const bodyW = 50;
-    const bodyH = 110;
+    const bodyW = 52;
+    const bodyH = 112;
     this.body.setSize(bodyW, bodyH);
     this.body.setOffset(
       (SPRITE_CELL_WIDTH - bodyW) / 2,
@@ -41,7 +41,7 @@ export default class NPC extends Phaser.Physics.Arcade.Sprite {
 
     // Indicador de interação — só aparece quando o jogador está perto.
     this.prompt = scene.add
-      .text(x, y - 95, 'E', {
+      .text(x, y - 102, 'E', {
         fontFamily: 'monospace',
         fontSize: '20px',
         color: '#ffe9b0',
@@ -64,6 +64,11 @@ export default class NPC extends Phaser.Physics.Arcade.Sprite {
       repeat: -1,
       yoyo: true,
     });
+  }
+
+  // Vira pro lado onde o jogador está — dá um mínimo de vida ao NPC.
+  facePlayer(player) {
+    this.setFlipX(player.x < this.x);
   }
 
   isPlayerInRange(player) {

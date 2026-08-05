@@ -6,13 +6,17 @@ export const GAME_HEIGHT = 720;
 export const TILE_SIZE = 64;
 
 // Célula do spritesheet do protagonista e dos NPCs.
-export const SPRITE_CELL_WIDTH = 80;
-export const SPRITE_CELL_HEIGHT = 132;
+export const SPRITE_CELL_WIDTH = 120;
+export const SPRITE_CELL_HEIGHT = 144;
 
 // O tile de grama tem as pontas das folhas transparentes no topo. Sem esse ajuste,
 // personagens e objetos parecem flutuar acima do chão. Tudo é desenhado
 // levemente "afundado" na grama.
 export const GROUND_VISUAL_OFFSET = 14;
+
+// Cor do topo do céu, usada pra preencher a área acima da textura de fundo
+// sem criar emenda visível.
+export const SKY_COLOR = 0xf6c07e;
 
 // Referência de física, ajustável em playtest (03_GAMEPLAY_MACRO.md, Seção 2).
 export const PHYSICS_CONFIG = {
@@ -28,7 +32,7 @@ export const PLAYER_TUNING = {
   maxSpeed: 320,
   acceleration: 2600,
   drag: 2200,
-  jumpVelocity: -780,
+  jumpVelocity: -880,
   // Gravidade extra na queda deixa o pulo "responsivo": sobe rápido, cai mais pesado.
   fallGravityMultiplier: 1.45,
   // Janela após sair da borda em que o pulo ainda é aceito.

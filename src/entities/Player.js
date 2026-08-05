@@ -20,8 +20,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // Hurtbox menor que o sprite visual (03_GAMEPLAY_MACRO.md, Seção 3).
     // A base do corpo fica ACIMA da base do sprite: assim os pés afundam na grama
     // em vez de parecerem flutuando sobre ela.
-    const bodyW = 38;
-    const bodyH = 100;
+    const bodyW = 40;
+    const bodyH = 108;
     this.body.setSize(bodyW, bodyH);
     this.body.setOffset(
       (SPRITE_CELL_WIDTH - bodyW) / 2,

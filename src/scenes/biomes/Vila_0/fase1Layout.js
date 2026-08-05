@@ -1,54 +1,63 @@
 // Layout da Fase 1 — "Despertar" (Vila Inicial, Região 0).
-// Ensina apenas Mover + Pular. Sem inimigos, sem boneco de treino
-// (02_CONTINENTE.md, Região 0 — "Inimigos: Nenhum").
+// Ensina apenas Mover + Pular. Sem inimigos (02_CONTINENTE.md, Região 0).
 //
-// Coordenadas em TILES (64px). O eixo Y cresce pra baixo; GROUND_ROW é o chão base.
+// Coordenadas em TILES (64px). GROUND_ROW é a linha do chão base.
+//
+// LIMITES FÍSICOS (calculados a partir de PLAYER_TUNING — não alterar sem recalcular):
+//   altura máxima de pulo ....... 2,75 tiles  -> plataformas no MÁXIMO 2 tiles acima
+//   alcance horizontal .......... 3,66 tiles  -> vãos no MÁXIMO 3 tiles
 export const TILES_WIDE = 92;
 export const TILES_HIGH = 12;
 export const GROUND_ROW = 9;
 
 // Segmentos de chão: [tileInicial, quantidadeDeTiles].
-// Os vãos entre segmentos são os buracos que ensinam o pulo, em dificuldade crescente.
+// Os vãos entre segmentos ensinam o pulo, em dificuldade crescente (1 -> 2 -> 3 tiles).
 export const GROUND_SEGMENTS = [
   [0, 14],   // início seguro — só andar
-  [16, 10],  // primeiro vão curto (1 tile)
-  [28, 9],   // vão de 2 tiles
-  [40, 8],   // vão de 3 tiles
-  [51, 12],  // trecho de descanso, onde fica o Camponês
-  [66, 7],   // vão de 3 tiles
-  [76, 16],  // trecho final até a saída
+  [15, 11],  // vão de 1 tile
+  [28, 10],  // vão de 2 tiles
+  [41, 8],   // vão de 3 tiles
+  [52, 12],  // trecho de descanso, onde fica o Camponês
+  [67, 7],   // vão de 3 tiles
+  [77, 15],  // trecho final até a saída
 ];
 
-// Plataformas suspensas: [tileX, tileY, quantidadeDeTiles].
-// Servem de rota alternativa/aprendizado de altura, nunca obrigatórias.
+// Plataformas suspensas — rota alternativa opcional, nunca obrigatória.
+// Todas a 2 tiles do chão (GROUND_ROW - 2), dentro do alcance do pulo.
 export const PLATFORMS = [
-  [21, 6, 3],
-  [33, 6, 3],
-  [45, 5, 3],
-  [58, 6, 2],
-  [70, 5, 3],
+  [20, GROUND_ROW - 2, 3],
+  [33, GROUND_ROW - 2, 3],
+  [46, GROUND_ROW - 2, 2],
+  [59, GROUND_ROW - 2, 3],
+  [71, GROUND_ROW - 2, 2],
+];
+
+// Checkpoints da fase (06_INTERFACE_UX.md, Seção 2.2; 05_BALANCEAMENTO.md, Seção 6).
+// Ficam sempre no início de um segmento de chão seguro, logo após um vão.
+export const CHECKPOINTS = [
+  { tileX: 16 },
+  { tileX: 29 },
+  { tileX: 42 },
+  { tileX: 53 },
+  { tileX: 78 },
 ];
 
 // Props de cenário (posição em tiles, ancorados pela base).
 export const PROPS = [
   { key: 'arvore', tileX: 7, depth: -5 },
-  { key: 'moinho', tileX: 34, depth: -5 },
-  { key: 'arvore', tileX: 80, depth: -5 },
+  { key: 'moinho', tileX: 35, depth: -5 },
+  { key: 'arvore', tileX: 82, depth: -5 },
 ];
 
 // Cercas — cada uma delimita algo que existe de fato no cenário, nunca decoração solta.
-// A largura real de cada peça é medida em tempo de execução (as peças são mais
-// largas que um tile), por isso aqui só definimos o início e quantas peças.
 export const FENCES = [
-  // Cercado da horta, ao lado do moinho — marca a propriedade que o moinho serve.
-  { startTileX: 30, pieces: 3, reason: 'horta do moinho' },
-  // Cercado do pasto onde o Camponês trabalha — ele fica logo à frente dela.
-  { startTileX: 51, pieces: 3, reason: 'pasto do campones' },
+  { startTileX: 31, pieces: 3, reason: 'horta do moinho' },
+  { startTileX: 54, pieces: 3, reason: 'pasto do campones' },
 ];
 
 // NPC principal da fase (09_TEMPLATE_VERTICAL_SLICE.md, Seção 2).
 export const NPC_CAMPONES = {
-  tileX: 56,
+  tileX: 58,
   name: 'Camponês',
   textureKey: 'npc_campones',
   frameCount: 2,

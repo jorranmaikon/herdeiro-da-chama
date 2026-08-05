@@ -4,6 +4,7 @@ import {
   GAME_HEIGHT,
   TILE_SIZE,
   GROUND_VISUAL_OFFSET,
+  SKY_COLOR,
 } from '../../../config/gameConfig.js';
 import Player from '../../../entities/Player.js';
 import NPC from '../../../entities/npcs/NPC.js';
@@ -14,6 +15,7 @@ import {
   GROUND_ROW,
   GROUND_SEGMENTS,
   PLATFORMS,
+  CHECKPOINTS,
   PROPS,
   FENCES,
   NPC_CAMPONES,
@@ -47,6 +49,7 @@ export default class Fase1Scene extends Phaser.Scene {
     this.createProps();
     this.createTerrain();
     this.createPlayer();
+    this.createCheckpoints();
     this.createNPCs();
     this.createExit();
     this.createHints();
@@ -59,21 +62,33 @@ export default class Fase1Scene extends Phaser.Scene {
   }
 
   createParallax() {
-    // Camadas fixas na câmera; o deslocamento é feito manualmente em updateParallax().
+    // Fundo sólido na cor do topo do céu: cobre a área acima da textura sem
+    // deixar a emenda vertical do tileSprite aparecer.
+    this.add
+      .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, SKY_COLOR)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(-110);
+
+    // As texturas de fundo foram espelhadas na geração dos assets, então emendam
+    // perfeitamente quando repetidas — sem corte visível.
+    const ceu = this.textures.get('bg_ceu').getSourceImage();
     this.bgCeu = this.add
-      .tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'bg_ceu')
+      .tileSprite(0, GAME_HEIGHT - ceu.height, GAME_WIDTH, ceu.height, 'bg_ceu')
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(-100);
 
+    const colinas = this.textures.get('bg_colinas').getSourceImage();
     this.bgColinas = this.add
-      .tileSprite(0, GAME_HEIGHT - 420, GAME_WIDTH, 220, 'bg_colinas')
+      .tileSprite(0, GAME_HEIGHT - 300 - colinas.height, GAME_WIDTH, colinas.height, 'bg_colinas')
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(-90);
 
+    const arvores = this.textures.get('bg_arvores').getSourceImage();
     this.bgArvores = this.add
-      .tileSprite(0, GAME_HEIGHT - 330, GAME_WIDTH, 300, 'bg_arvores')
+      .tileSprite(0, GAME_HEIGHT - 230 - arvores.height, GAME_WIDTH, arvores.height, 'bg_arvores')
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(-80);
@@ -152,8 +167,40 @@ export default class Fase1Scene extends Phaser.Scene {
       y: (GROUND_ROW - 2) * TILE_SIZE,
     };
     this.player = new Player(this, this.spawnPoint.x, this.spawnPoint.y);
-    // Checkpoint mais recente — atualizado ao pisar em cada segmento de chão.
+    // Começa no início da fase; passa a valer o último checkpoint ativado.
     this.lastCheckpoint = { ...this.spawnPoint };
+  }
+
+  createCheckpoints() {
+    // Checkpoints explícitos do layout (05_BALANCEAMENTO.md, Seção 6).
+    // Ao morrer, o jogador volta ao último ativado — ou ao início, se nenhum ativou.
+    this.checkpoints = CHECKPOINTS.map(({ tileX }) => {
+      const x = tileX * TILE_SIZE;
+      const y = GROUND_ROW * TILE_SIZE + GROUND_VISUAL_OFFSET;
+
+      const marker = this.add
+        .rectangle(x, y - 60, 8, 96, 0x6b5334)
+        .setOrigin(0.5, 1)
+        .setDepth(-3);
+      const flame = this.add
+        .circle(x, y - 104, 9, 0x5a4a33)
+        .setDepth(-3);
+
+      const zone = this.add.zone(x, y - 60, 60, 140);
+      this.physics.add.existing(zone, true);
+
+      const cp = { x, y: y - TILE_SIZE, zone, flame, active: false };
+      this.physics.add.overlap(this.player, zone, () => this.activateCheckpoint(cp));
+      return cp;
+    });
+  }
+
+  activateCheckpoint(cp) {
+    if (cp.active) return;
+    cp.active = true;
+    // Acende visualmente — feedback de que o ponto foi salvo.
+    cp.flame.setFillStyle(0xffb84d);
+    this.lastCheckpoint = { x: cp.x, y: cp.y };
   }
 
   createNPCs() {
@@ -209,14 +256,6 @@ export default class Fase1Scene extends Phaser.Scene {
     this.add.text(14 * TILE_SIZE, baseY, jumpHint, style).setOrigin(0.5);
   }
 
-  // Guarda a posição segura mais recente, pra devolver o jogador ali após uma queda.
-  updateCheckpoint() {
-    const onGround = this.player.body.blocked.down;
-    if (!onGround) return;
-    if (this.player.y < this.lastCheckpoint.y - TILE_SIZE * 3) return;
-    this.lastCheckpoint = { x: this.player.x, y: this.player.y - TILE_SIZE };
-  }
-
   handleFall() {
     if (this.isRespawning || this.player.y < this.deathY) return;
 
@@ -249,7 +288,6 @@ export default class Fase1Scene extends Phaser.Scene {
     if (!this.isRespawning) {
       this.player.update(input, time);
       if (input.attackJustPressed()) this.player.attack();
-      this.updateCheckpoint();
       this.handleFall();
       this.handleNPCInteraction(input);
     }
@@ -262,6 +300,7 @@ export default class Fase1Scene extends Phaser.Scene {
 
   handleNPCInteraction(input) {
     this.npcs.forEach((npc) => {
+      npc.facePlayer(this.player);
       const inRange = npc.isPlayerInRange(this.player);
       npc.setPromptVisible(inRange);
 
