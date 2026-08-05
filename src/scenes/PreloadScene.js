@@ -24,6 +24,13 @@ export default class PreloadScene extends Phaser.Scene {
 
     // --- UI ---
     this.load.image('retrato_campones', 'assets/ui/retrato_campones.png');
+    this.load.image('capa_menu', 'assets/ui/capa_menu.png');
+    this.load.image('mapa_continente', 'assets/ui/mapa_continente.png');
+
+    // --- Trilha sonora ---
+    this.load.audio('mus_titulo', 'assets/audio/titulo.mp3');
+    this.load.audio('mus_mapa', 'assets/audio/mapa.mp3');
+    this.load.audio('mus_fase_vila', 'assets/audio/fase_vila.mp3');
 
     // --- Tiles (Vila Inicial) ---
     this.load.image('tile_grama', 'assets/tiles/tile_grama.png');

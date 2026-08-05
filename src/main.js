@@ -9,6 +9,7 @@ import DialogueOverlay from './scenes/DialogueOverlay.js';
 import ChronicleScene from './scenes/ChronicleScene.js';
 import MapScene from './scenes/MapScene.js';
 import Fase1Scene from './scenes/biomes/Vila_0/Fase1Scene.js';
+import AudioManager from './managers/AudioManager.js';
 
 // Bootstrap do jogo (08_ARQUITETURA_TECNICA.md, Seção 3).
 const config = {
@@ -34,4 +35,8 @@ const config = {
   ],
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+// Manager global de trilha — vive no jogo, não na cena, pra música atravessar
+// transições sem reiniciar (08_ARQUITETURA_TECNICA.md, Seção 5).
+game.audio = new AudioManager(game);

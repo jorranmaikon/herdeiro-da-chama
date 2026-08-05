@@ -62,6 +62,7 @@ export default class Fase1Scene extends Phaser.Scene {
     // arrastar a câmera pra cima.
     this.cameras.main.startFollow(this.player, true, 0.12, 0);
     this.cameras.main.setFollowOffset(0, 0);
+    this.game.audio.playMusic(this, 'mus_fase_vila');
     this.cameras.main.fadeIn(600);
   }
 
@@ -83,7 +84,7 @@ export default class Fase1Scene extends Phaser.Scene {
     const layers = [
       { key: 'bg_ceu', base: 430, depth: -100, factor: 0.05, prop: 'bgCeu' },
       { key: 'bg_colinas', base: 545, depth: -90, factor: 0.25, prop: 'bgColinas' },
-      { key: 'bg_arvores', base: 668, depth: -80, factor: 0.5, prop: 'bgArvores' },
+      { key: 'bg_arvores', base: 700, depth: -80, factor: 0.5, prop: 'bgArvores' },
     ];
 
     this.parallaxLayers = layers.map(({ key, base, depth, factor, prop }) => {
@@ -280,9 +281,9 @@ export default class Fase1Scene extends Phaser.Scene {
 
     this.cameras.main.fadeOut(700);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      // TODO: voltar ao Mapa do Bioma quando MapScene estiver implementada
-      // (06_INTERFACE_UX.md, Seção 2.2). Por ora volta ao menu.
-      this.scene.start('MainMenuScene');
+      // TODO: Mapa do Bioma (fases dentro da região) ainda não existe —
+      // por ora volta ao Mapa do Continente (06_INTERFACE_UX.md, Seção 2.2).
+      this.scene.start('MapScene');
     });
   }
 
