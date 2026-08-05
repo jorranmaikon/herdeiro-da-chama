@@ -31,7 +31,9 @@ export default class Fase1Scene extends Phaser.Scene {
 
   create() {
     const worldWidth = TILES_WIDE * TILE_SIZE;
-    const worldHeight = TILES_HIGH * TILE_SIZE;
+    // A altura do mundo é igual à da câmera de propósito: assim a câmera NUNCA
+    // rola na vertical e o cenário não "pula" junto com o jogador.
+    const worldHeight = GAME_HEIGHT;
 
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
@@ -42,7 +44,7 @@ export default class Fase1Scene extends Phaser.Scene {
     this.controls = new InputManager(this);
 
     // Y a partir do qual a queda é fatal (bem abaixo do chão, dentro dos vãos).
-    this.deathY = (GROUND_ROW + 2) * TILE_SIZE;
+    this.deathY = (GROUND_ROW + 1) * TILE_SIZE;
     this.isRespawning = false;
 
     this.createParallax();
@@ -56,8 +58,10 @@ export default class Fase1Scene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.solids);
 
-    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-    this.cameras.main.setFollowOffset(0, 60);
+    // Segue apenas no eixo X (lerpY = 0). O nível é plano e o pulo não deve
+    // arrastar a câmera pra cima.
+    this.cameras.main.startFollow(this.player, true, 0.12, 0);
+    this.cameras.main.setFollowOffset(0, 0);
     this.cameras.main.fadeIn(600);
   }
 
@@ -72,33 +76,33 @@ export default class Fase1Scene extends Phaser.Scene {
 
     // As texturas de fundo foram espelhadas na geração dos assets, então emendam
     // perfeitamente quando repetidas — sem corte visível.
-    const ceu = this.textures.get('bg_ceu').getSourceImage();
-    this.bgCeu = this.add
-      .tileSprite(0, GAME_HEIGHT - ceu.height, GAME_WIDTH, ceu.height, 'bg_ceu')
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(-100);
+    // Linha de base de cada camada. Quanto mais distante, mais ALTA no horizonte:
+    // montanhas > colinas verdes > árvores próximas.
+    // A base das árvores fica abaixo da linha do chão de propósito — o tileset
+    // cobre o excesso e elimina a sensação de que elas flutuam.
+    const layers = [
+      { key: 'bg_ceu', base: 470, depth: -100, factor: 0.05, prop: 'bgCeu' },
+      { key: 'bg_colinas', base: 560, depth: -90, factor: 0.25, prop: 'bgColinas' },
+      { key: 'bg_arvores', base: 645, depth: -80, factor: 0.5, prop: 'bgArvores' },
+    ];
 
-    const colinas = this.textures.get('bg_colinas').getSourceImage();
-    this.bgColinas = this.add
-      .tileSprite(0, GAME_HEIGHT - 300 - colinas.height, GAME_WIDTH, colinas.height, 'bg_colinas')
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(-90);
-
-    const arvores = this.textures.get('bg_arvores').getSourceImage();
-    this.bgArvores = this.add
-      .tileSprite(0, GAME_HEIGHT - 230 - arvores.height, GAME_WIDTH, arvores.height, 'bg_arvores')
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(-80);
+    this.parallaxLayers = layers.map(({ key, base, depth, factor, prop }) => {
+      const img = this.textures.get(key).getSourceImage();
+      const sprite = this.add
+        .tileSprite(0, base - img.height, GAME_WIDTH, img.height, key)
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setDepth(depth);
+      this[prop] = sprite;
+      return { sprite, factor };
+    });
   }
 
   updateParallax() {
     const scrollX = this.cameras.main.scrollX;
-    this.bgCeu.tilePositionX = scrollX * 0.05;
-    this.bgColinas.tilePositionX = scrollX * 0.25;
-    this.bgArvores.tilePositionX = scrollX * 0.5;
+    this.parallaxLayers.forEach(({ sprite, factor }) => {
+      sprite.tilePositionX = scrollX * factor;
+    });
   }
 
   createProps() {
@@ -189,7 +193,9 @@ export default class Fase1Scene extends Phaser.Scene {
       const zone = this.add.zone(x, y - 60, 60, 140);
       this.physics.add.existing(zone, true);
 
-      const cp = { x, y: y - TILE_SIZE, zone, flame, active: false };
+      // Renasce 2 tiles acima do chão (mesma altura do spawn inicial),
+      // senão o jogador reaparece dentro do solo.
+      const cp = { x, y: (GROUND_ROW - 2) * TILE_SIZE, zone, flame, active: false };
       this.physics.add.overlap(this.player, zone, () => this.activateCheckpoint(cp));
       return cp;
     });
