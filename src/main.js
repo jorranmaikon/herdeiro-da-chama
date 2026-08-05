@@ -18,6 +18,9 @@ const config = {
   height: GAME_HEIGHT,
   parent: 'game-container',
   pixelArt: true,
+  // HTML5 Audio em vez de WebAudio: no iOS o WebAudio é silenciado pelo botão
+  // físico de mudo do aparelho, mesmo com o volume no máximo.
+  audio: { disableWebAudio: true },
   physics: PHYSICS_CONFIG,
   scale: {
     mode: Phaser.Scale.FIT,
@@ -40,3 +43,13 @@ const game = new Phaser.Game(config);
 // Manager global de trilha — vive no jogo, não na cena, pra música atravessar
 // transições sem reiniciar (08_ARQUITETURA_TECNICA.md, Seção 5).
 game.audio = new AudioManager(game);
+
+// O navegador suspende o áudio ao trocar de aba/app. Ao voltar, retoma —
+// sem isso a música "para sozinha" depois de um tempo.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  const ctx = game.sound?.context;
+  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  const scene = game.scene.getScenes(true)[0];
+  if (scene) game.audio.retry(scene);
+});

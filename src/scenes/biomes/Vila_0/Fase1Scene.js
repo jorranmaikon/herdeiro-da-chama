@@ -63,6 +63,7 @@ export default class Fase1Scene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.12, 0);
     this.cameras.main.setFollowOffset(0, 0);
     this.game.audio.playMusic(this, 'mus_fase_vila');
+    this.game.audio.createToggleButton(this);
     this.cameras.main.fadeIn(600);
   }
 

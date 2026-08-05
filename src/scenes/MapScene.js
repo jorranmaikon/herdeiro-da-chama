@@ -30,6 +30,7 @@ export default class MapScene extends Phaser.Scene {
     this.mapa.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
     this.game.audio.playMusic(this, 'mus_mapa');
+    this.game.audio.createToggleButton(this);
 
     this.titulo = this.add
       .text(GAME_WIDTH / 2, 34, 'O Continente', {

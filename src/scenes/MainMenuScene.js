@@ -13,6 +13,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.add.image(0, 0, 'capa_menu').setOrigin(0).setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
     this.game.audio.playMusic(this, 'mus_titulo');
+    this.game.audio.createToggleButton(this);
 
     // Coordenadas relativas aos botões desenhados na arte da capa.
     this.makeHotspot(1046, 176, 300, 92, () => this.startGame());
