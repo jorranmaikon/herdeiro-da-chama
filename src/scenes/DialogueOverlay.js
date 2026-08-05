@@ -66,6 +66,8 @@ export default class DialogueOverlay extends Phaser.Scene {
 
     this.input.keyboard.on('keydown-E', () => this.advance());
     this.input.keyboard.on('keydown-SPACE', () => this.advance());
+    // Mobile: toque em qualquer lugar avança/acelera o texto.
+    this.input.on('pointerdown', () => this.advance());
 
     this.startLine();
   }
@@ -114,6 +116,7 @@ export default class DialogueOverlay extends Phaser.Scene {
   close() {
     this.typeEvent?.remove();
     this.input.keyboard.removeAllListeners();
+    this.input.removeAllListeners();
     if (this.callerScene) this.scene.resume(this.callerScene);
     this.scene.stop();
   }

@@ -36,11 +36,14 @@ export const PROPS = [
   { key: 'arvore', tileX: 80, depth: -5 },
 ];
 
-// Cercas decorativas ao longo do caminho.
+// Cercas — cada uma delimita algo que existe de fato no cenário, nunca decoração solta.
+// A largura real de cada peça é medida em tempo de execução (as peças são mais
+// largas que um tile), por isso aqui só definimos o início e quantas peças.
 export const FENCES = [
-  { tileX: 3, count: 4 },
-  { tileX: 53, count: 5 },
-  { tileX: 84, count: 4 },
+  // Cercado da horta, ao lado do moinho — marca a propriedade que o moinho serve.
+  { startTileX: 30, pieces: 3, reason: 'horta do moinho' },
+  // Cercado do pasto onde o Camponês trabalha — ele fica logo à frente dela.
+  { startTileX: 51, pieces: 3, reason: 'pasto do campones' },
 ];
 
 // NPC principal da fase (09_TEMPLATE_VERTICAL_SLICE.md, Seção 2).

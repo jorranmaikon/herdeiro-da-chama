@@ -84,12 +84,20 @@ export default class Fase1Scene extends Phaser.Scene {
       this.add.image(tileX * TILE_SIZE, baseY, key).setOrigin(0.5, 1).setDepth(depth);
     });
 
-    FENCES.forEach(({ tileX, count }) => {
-      for (let i = 0; i < count; i += 1) {
-        const x = (tileX + i) * TILE_SIZE;
-        const key = i === 0 ? 'cerca_poste_esq' : i === count - 1 ? 'cerca_poste_dir' : 'cerca';
-        this.add.image(x, baseY, key).setOrigin(0, 1).setDepth(-4);
+    // As peças de cerca são mais largas que um tile, então o avanço usa a largura
+    // real da textura — senão elas se sobrepõem (bug da primeira versão).
+    FENCES.forEach(({ startTileX, pieces }) => {
+      let x = startTileX * TILE_SIZE;
+
+      const poste = this.add.image(x, baseY, 'cerca_poste_esq').setOrigin(0, 1).setDepth(-4);
+      x += poste.width;
+
+      for (let i = 0; i < pieces; i += 1) {
+        const seg = this.add.image(x, baseY, 'cerca').setOrigin(0, 1).setDepth(-4);
+        x += seg.width;
       }
+
+      this.add.image(x, baseY, 'cerca_poste_dir').setOrigin(0, 1).setDepth(-4);
     });
   }
 
@@ -178,9 +186,14 @@ export default class Fase1Scene extends Phaser.Scene {
       align: 'center',
     };
 
+    // O texto da dica muda conforme o dispositivo — no celular não existe "ESPAÇO".
+    const isTouch = this.sys.game.device.input.touch;
+    const moveHint = isTouch ? '◀ ▶ mover' : '← → mover';
+    const jumpHint = isTouch ? '▲ pular' : 'ESPAÇO pular';
+
     const baseY = (GROUND_ROW - 3) * TILE_SIZE;
-    this.add.text(3 * TILE_SIZE, baseY, '← → mover', style).setOrigin(0.5);
-    this.add.text(14 * TILE_SIZE, baseY, 'ESPAÇO pular', style).setOrigin(0.5);
+    this.add.text(3 * TILE_SIZE, baseY, moveHint, style).setOrigin(0.5);
+    this.add.text(14 * TILE_SIZE, baseY, jumpHint, style).setOrigin(0.5);
   }
 
   finishPhase() {
@@ -206,6 +219,9 @@ export default class Fase1Scene extends Phaser.Scene {
     if (input.attackJustPressed()) this.player.attack();
 
     this.handleNPCInteraction(input);
+
+    // Consome os toques deste frame — precisa ser a última linha do update.
+    input.lateUpdate();
   }
 
   handleNPCInteraction(input) {

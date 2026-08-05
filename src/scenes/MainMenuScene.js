@@ -49,8 +49,13 @@ export default class MainMenuScene extends Phaser.Scene {
     start.on('pointerout', () => start.setColor('#e8dfd0'));
     start.on('pointerdown', () => this.startGame());
 
+    const isTouch = this.sys.game.device.input.touch;
+    const controlsHint = isTouch
+      ? 'Use os botões na tela para mover, pular e interagir'
+      : 'Setas/AD mover  •  ESPAÇO pular  •  X atacar  •  E interagir';
+
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 70, 'Setas/AD mover  •  ESPAÇO pular  •  X atacar  •  E interagir', {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 70, controlsHint, {
         fontFamily: 'monospace',
         fontSize: '16px',
         color: '#7a6a52',
@@ -59,6 +64,8 @@ export default class MainMenuScene extends Phaser.Scene {
 
     this.input.keyboard.once('keydown-ENTER', () => this.startGame());
     this.input.keyboard.once('keydown-SPACE', () => this.startGame());
+    // Mobile: toque em qualquer lugar da tela inicia.
+    this.input.once('pointerdown', () => this.startGame());
   }
 
   startGame() {
