@@ -81,9 +81,9 @@ export default class Fase1Scene extends Phaser.Scene {
     // A base das árvores fica abaixo da linha do chão de propósito — o tileset
     // cobre o excesso e elimina a sensação de que elas flutuam.
     const layers = [
-      { key: 'bg_ceu', base: 470, depth: -100, factor: 0.05, prop: 'bgCeu' },
-      { key: 'bg_colinas', base: 560, depth: -90, factor: 0.25, prop: 'bgColinas' },
-      { key: 'bg_arvores', base: 645, depth: -80, factor: 0.5, prop: 'bgArvores' },
+      { key: 'bg_ceu', base: 430, depth: -100, factor: 0.05, prop: 'bgCeu' },
+      { key: 'bg_colinas', base: 545, depth: -90, factor: 0.25, prop: 'bgColinas' },
+      { key: 'bg_arvores', base: 668, depth: -80, factor: 0.5, prop: 'bgArvores' },
     ];
 
     this.parallaxLayers = layers.map(({ key, base, depth, factor, prop }) => {
