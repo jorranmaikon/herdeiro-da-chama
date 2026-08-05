@@ -8,6 +8,7 @@ import PauseScene from './scenes/PauseScene.js';
 import DialogueOverlay from './scenes/DialogueOverlay.js';
 import ChronicleScene from './scenes/ChronicleScene.js';
 import MapScene from './scenes/MapScene.js';
+import Fase1Scene from './scenes/biomes/Vila_0/Fase1Scene.js';
 
 // Bootstrap do jogo (08_ARQUITETURA_TECNICA.md, Seção 3).
 const config = {
@@ -21,7 +22,16 @@ const config = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, PreloadScene, MainMenuScene, PauseScene, DialogueOverlay, ChronicleScene, MapScene],
+  scene: [
+    BootScene,
+    PreloadScene,
+    MainMenuScene,
+    Fase1Scene,
+    PauseScene,
+    DialogueOverlay,
+    ChronicleScene,
+    MapScene,
+  ],
 };
 
 new Phaser.Game(config);

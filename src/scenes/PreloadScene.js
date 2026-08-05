@@ -1,21 +1,63 @@
 import Phaser from 'phaser';
+import { GAME_WIDTH, GAME_HEIGHT, SPRITE_CELL_WIDTH, SPRITE_CELL_HEIGHT } from '../config/gameConfig.js';
 
-// Carrega assets globais (UI, fontes) + assets do bioma atual (08_ARQUITETURA_TECNICA.md, Seção 4).
-// TODO: carregar assets reais assim que o Checklist de Assets de cada Vertical Slice
-// (09_TEMPLATE_VERTICAL_SLICE.md, Seção 10) estiver produzido.
+// Carrega assets globais + assets do bioma atual (08_ARQUITETURA_TECNICA.md, Seção 4).
 export default class PreloadScene extends Phaser.Scene {
   constructor() {
     super('PreloadScene');
   }
 
   preload() {
-    // Placeholder: sem assets ainda. Barra de loading básica pra quando existirem.
-    const { width, height } = this.cameras.main;
-    const box = this.add.rectangle(width / 2, height / 2, 120, 8, 0x333333);
-    const bar = this.add.rectangle(width / 2 - 58, height / 2, 4, 4, 0xffb84d).setOrigin(0, 0.5);
+    this.showLoadingBar();
+
+    const frameConfig = {
+      frameWidth: SPRITE_CELL_WIDTH,
+      frameHeight: SPRITE_CELL_HEIGHT,
+    };
+
+    // --- Personagens ---
+    this.load.spritesheet('protagonista', 'assets/sprites/protagonista.png', frameConfig);
+    this.load.spritesheet('npc_campones', 'assets/sprites/npc_campones.png', frameConfig);
+
+    // --- UI ---
+    this.load.image('retrato_campones', 'assets/ui/retrato_campones.png');
+
+    // --- Tiles (Vila Inicial) ---
+    this.load.image('tile_grama', 'assets/tiles/tile_grama.png');
+    this.load.image('tile_terra', 'assets/tiles/tile_terra.png');
+    this.load.image('tile_caminho', 'assets/tiles/tile_caminho.png');
+    this.load.image('tile_transicao', 'assets/tiles/tile_transicao.png');
+
+    // --- Props (Vila Inicial) ---
+    this.load.image('arvore', 'assets/props/arvore.png');
+    this.load.image('moinho', 'assets/props/moinho.png');
+    this.load.image('cerca', 'assets/props/cerca.png');
+    this.load.image('cerca_poste_esq', 'assets/props/cerca_poste_esq.png');
+    this.load.image('cerca_poste_dir', 'assets/props/cerca_poste_dir.png');
+
+    // --- Parallax (Vila Inicial) ---
+    this.load.image('bg_ceu', 'assets/bg/bg_ceu.png');
+    this.load.image('bg_colinas', 'assets/bg/bg_colinas.png');
+    this.load.image('bg_arvores', 'assets/bg/bg_arvores.png');
+  }
+
+  showLoadingBar() {
+    const cx = GAME_WIDTH / 2;
+    const cy = GAME_HEIGHT / 2;
+
+    this.add.rectangle(cx, cy, 420, 18, 0x2a2118).setStrokeStyle(2, 0x6b5334);
+    const bar = this.add.rectangle(cx - 207, cy, 4, 10, 0xffb84d).setOrigin(0, 0.5);
+
+    this.add
+      .text(cx, cy - 40, 'Carregando...', {
+        fontFamily: 'monospace',
+        fontSize: '20px',
+        color: '#e8dfd0',
+      })
+      .setOrigin(0.5);
 
     this.load.on('progress', (value) => {
-      bar.width = 116 * value;
+      bar.width = 414 * value;
     });
   }
 
