@@ -51,6 +51,7 @@ export const NPC_CAMPONES = {
   tileX: 56,
   name: 'Camponês',
   textureKey: 'npc_campones',
+  frameCount: 2,
   portraitKey: 'retrato_campones',
   lines: [
     'Bom dia! Cedo pra você estar andando por aqui.',

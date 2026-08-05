@@ -1,8 +1,14 @@
 import Phaser from 'phaser';
-import { PLAYER_TUNING, PHYSICS_CONFIG } from '../config/gameConfig.js';
+import {
+  PLAYER_TUNING,
+  PHYSICS_CONFIG,
+  SPRITE_CELL_WIDTH,
+  SPRITE_CELL_HEIGHT,
+  GROUND_VISUAL_OFFSET,
+} from '../config/gameConfig.js';
 
 // Protagonista (03_GAMEPLAY_MACRO.md, Seções 1-3).
-// Animações vêm do spritesheet 'protagonista' (96x160 por célula, 4 colunas):
+// Spritesheet 'protagonista' — 80x132 por célula, 4 colunas:
 //   linha 0 = Idle | 1 = Correr | 2 = Pular/Cair | 3 = Ataque | 4 = Hit | 5 = Morte
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
@@ -11,10 +17,16 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Hurtbox menor que o sprite visual, pra evitar frustração
-    // (03_GAMEPLAY_MACRO.md, Seção 3).
-    this.body.setSize(44, 120);
-    this.body.setOffset((96 - 44) / 2, 160 - 120);
+    // Hurtbox menor que o sprite visual (03_GAMEPLAY_MACRO.md, Seção 3).
+    // A base do corpo fica ACIMA da base do sprite: assim os pés afundam na grama
+    // em vez de parecerem flutuando sobre ela.
+    const bodyW = 38;
+    const bodyH = 100;
+    this.body.setSize(bodyW, bodyH);
+    this.body.setOffset(
+      (SPRITE_CELL_WIDTH - bodyW) / 2,
+      SPRITE_CELL_HEIGHT - bodyH - GROUND_VISUAL_OFFSET,
+    );
     this.setCollideWorldBounds(true);
 
     this.facing = 1;
@@ -28,21 +40,23 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   createAnimations(scene) {
     const defs = [
-      { key: 'player-idle', row: 0, rate: 5, repeat: -1 },
-      { key: 'player-run', row: 1, rate: 12, repeat: -1 },
-      { key: 'player-jump', row: 2, rate: 8, repeat: 0 },
-      { key: 'player-attack', row: 3, rate: 16, repeat: 0 },
-      { key: 'player-hit', row: 4, rate: 12, repeat: 0 },
-      { key: 'player-death', row: 5, rate: 8, repeat: 0 },
+      // Idle e respiração do NPC ficam lentos de propósito — antes pareciam ofegantes.
+      { key: 'player-idle', row: 0, frames: 4, rate: 2.5, repeat: -1 },
+      { key: 'player-run', row: 1, frames: 4, rate: 11, repeat: -1 },
+      { key: 'player-jump', row: 2, frames: 4, rate: 8, repeat: 0 },
+      // Ataque usa 3 frames — o 4º era a espada quebrada e foi removido do sheet.
+      { key: 'player-attack', row: 3, frames: 3, rate: 13, repeat: 0 },
+      { key: 'player-hit', row: 4, frames: 4, rate: 10, repeat: 0 },
+      { key: 'player-death', row: 5, frames: 4, rate: 7, repeat: 0 },
     ];
 
-    defs.forEach(({ key, row, rate, repeat }) => {
+    defs.forEach(({ key, row, frames, rate, repeat }) => {
       if (scene.anims.exists(key)) return;
       scene.anims.create({
         key,
         frames: scene.anims.generateFrameNumbers('protagonista', {
           start: row * 4,
-          end: row * 4 + 3,
+          end: row * 4 + frames - 1,
         }),
         frameRate: rate,
         repeat,
@@ -81,7 +95,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.facing = 1;
       this.setFlipX(false);
     } else {
-      // Aceleração leve nos dois sentidos — não é "instant stop/start".
       this.setAccelerationX(0);
       this.setDragX(drag);
     }
@@ -124,6 +137,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.once('animationcomplete-player-attack', () => {
       this.isAttacking = false;
     });
+  }
+
+  // Reposiciona o jogador após queda em vão (chamado pela cena).
+  respawnAt(x, y) {
+    this.isAttacking = false;
+    this.setVelocity(0, 0);
+    this.setAcceleration(0, 0);
+    this.setPosition(x, y);
+    this.play('player-idle', true);
   }
 
   updateAnimation(onGround) {

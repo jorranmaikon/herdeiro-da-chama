@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, TILE_SIZE } from '../../../config/gameConfig.js';
+import {
+  GAME_WIDTH,
+  GAME_HEIGHT,
+  TILE_SIZE,
+  GROUND_VISUAL_OFFSET,
+} from '../../../config/gameConfig.js';
 import Player from '../../../entities/Player.js';
 import NPC from '../../../entities/npcs/NPC.js';
 import InputManager from '../../../managers/InputManager.js';
@@ -29,7 +34,14 @@ export default class Fase1Scene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
 
+    // Multitouch: sem pointers extras, andar e pular ao mesmo tempo não funciona no celular.
+    this.input.addPointer(3);
+
     this.controls = new InputManager(this);
+
+    // Y a partir do qual a queda é fatal (bem abaixo do chão, dentro dos vãos).
+    this.deathY = (GROUND_ROW + 2) * TILE_SIZE;
+    this.isRespawning = false;
 
     this.createParallax();
     this.createProps();
@@ -42,14 +54,12 @@ export default class Fase1Scene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.solids);
 
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-    // Look-ahead na direção do movimento (03_GAMEPLAY_MACRO.md, Seção 7).
     this.cameras.main.setFollowOffset(0, 60);
     this.cameras.main.fadeIn(600);
   }
 
   createParallax() {
-    // Camadas fixas na câmera; o deslocamento é feito manualmente em updateParallax(),
-    // o que evita problemas de posicionamento com scrollFactor em mundo largo.
+    // Camadas fixas na câmera; o deslocamento é feito manualmente em updateParallax().
     this.bgCeu = this.add
       .tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'bg_ceu')
       .setOrigin(0)
@@ -71,21 +81,22 @@ export default class Fase1Scene extends Phaser.Scene {
 
   updateParallax() {
     const scrollX = this.cameras.main.scrollX;
-    // Quanto mais distante a camada, mais devagar ela se move.
     this.bgCeu.tilePositionX = scrollX * 0.05;
     this.bgColinas.tilePositionX = scrollX * 0.25;
     this.bgArvores.tilePositionX = scrollX * 0.5;
   }
 
   createProps() {
-    const baseY = GROUND_ROW * TILE_SIZE;
+    // Objetos ficam levemente afundados na grama, senão parecem flutuar
+    // (o topo do tile de grama é transparente).
+    const baseY = GROUND_ROW * TILE_SIZE + GROUND_VISUAL_OFFSET;
 
     PROPS.forEach(({ key, tileX, depth }) => {
       this.add.image(tileX * TILE_SIZE, baseY, key).setOrigin(0.5, 1).setDepth(depth);
     });
 
     // As peças de cerca são mais largas que um tile, então o avanço usa a largura
-    // real da textura — senão elas se sobrepõem (bug da primeira versão).
+    // real da textura — senão elas se sobrepõem.
     FENCES.forEach(({ startTileX, pieces }) => {
       let x = startTileX * TILE_SIZE;
 
@@ -102,7 +113,6 @@ export default class Fase1Scene extends Phaser.Scene {
   }
 
   createTerrain() {
-    // Grupo estático único pra todo o chão e plataformas — um só collider no update.
     this.solids = this.physics.add.staticGroup();
 
     GROUND_SEGMENTS.forEach(([startTile, length]) => {
@@ -110,7 +120,7 @@ export default class Fase1Scene extends Phaser.Scene {
         const tileX = startTile + i;
         this.addSolidTile(tileX, GROUND_ROW, 'tile_grama');
 
-        // Preenche o subsolo com terra até a base do mundo (só visual, sem colisão).
+        // Subsolo apenas visual, sem colisão.
         for (let row = GROUND_ROW + 1; row < TILES_HIGH; row += 1) {
           this.add
             .image(tileX * TILE_SIZE, row * TILE_SIZE, 'tile_terra')
@@ -137,18 +147,21 @@ export default class Fase1Scene extends Phaser.Scene {
   }
 
   createPlayer() {
-    const spawnX = 2 * TILE_SIZE;
-    const spawnY = (GROUND_ROW - 2) * TILE_SIZE;
-    this.player = new Player(this, spawnX, spawnY);
+    this.spawnPoint = {
+      x: 2 * TILE_SIZE,
+      y: (GROUND_ROW - 2) * TILE_SIZE,
+    };
+    this.player = new Player(this, this.spawnPoint.x, this.spawnPoint.y);
+    // Checkpoint mais recente — atualizado ao pisar em cada segmento de chão.
+    this.lastCheckpoint = { ...this.spawnPoint };
   }
 
   createNPCs() {
     this.npcs = [];
-
     const npc = new NPC(
       this,
       NPC_CAMPONES.tileX * TILE_SIZE,
-      GROUND_ROW * TILE_SIZE - 80,
+      GROUND_ROW * TILE_SIZE + GROUND_VISUAL_OFFSET - 66,
       NPC_CAMPONES,
     );
     this.npcs.push(npc);
@@ -158,11 +171,11 @@ export default class Fase1Scene extends Phaser.Scene {
     const x = EXIT_TILE_X * TILE_SIZE;
     const y = GROUND_ROW * TILE_SIZE;
 
-    this.exitZone = this.add.zone(x, y - 100, 80, 200);
+    this.exitZone = this.add.zone(x, y - 90, 80, 190);
     this.physics.add.existing(this.exitZone, true);
 
     this.add
-      .text(x, y - 220, 'Bosque\nEsmeralda\n▶', {
+      .text(x, y - 200, 'Bosque\nEsmeralda\n▶', {
         fontFamily: 'monospace',
         fontSize: '20px',
         color: '#ffe9b0',
@@ -186,7 +199,7 @@ export default class Fase1Scene extends Phaser.Scene {
       align: 'center',
     };
 
-    // O texto da dica muda conforme o dispositivo — no celular não existe "ESPAÇO".
+    // O texto muda conforme o dispositivo — no celular não existe "ESPAÇO".
     const isTouch = this.sys.game.device.input.touch;
     const moveHint = isTouch ? '◀ ▶ mover' : '← → mover';
     const jumpHint = isTouch ? '▲ pular' : 'ESPAÇO pular';
@@ -194,6 +207,26 @@ export default class Fase1Scene extends Phaser.Scene {
     const baseY = (GROUND_ROW - 3) * TILE_SIZE;
     this.add.text(3 * TILE_SIZE, baseY, moveHint, style).setOrigin(0.5);
     this.add.text(14 * TILE_SIZE, baseY, jumpHint, style).setOrigin(0.5);
+  }
+
+  // Guarda a posição segura mais recente, pra devolver o jogador ali após uma queda.
+  updateCheckpoint() {
+    const onGround = this.player.body.blocked.down;
+    if (!onGround) return;
+    if (this.player.y < this.lastCheckpoint.y - TILE_SIZE * 3) return;
+    this.lastCheckpoint = { x: this.player.x, y: this.player.y - TILE_SIZE };
+  }
+
+  handleFall() {
+    if (this.isRespawning || this.player.y < this.deathY) return;
+
+    this.isRespawning = true;
+    this.cameras.main.fadeOut(280);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.player.respawnAt(this.lastCheckpoint.x, this.lastCheckpoint.y);
+      this.cameras.main.fadeIn(280);
+      this.isRespawning = false;
+    });
   }
 
   finishPhase() {
@@ -212,13 +245,16 @@ export default class Fase1Scene extends Phaser.Scene {
     if (this.exitReached) return;
 
     const input = this.controls;
-    this.player.update(input, time);
+
+    if (!this.isRespawning) {
+      this.player.update(input, time);
+      if (input.attackJustPressed()) this.player.attack();
+      this.updateCheckpoint();
+      this.handleFall();
+      this.handleNPCInteraction(input);
+    }
 
     this.updateParallax();
-
-    if (input.attackJustPressed()) this.player.attack();
-
-    this.handleNPCInteraction(input);
 
     // Consome os toques deste frame — precisa ser a última linha do update.
     input.lateUpdate();

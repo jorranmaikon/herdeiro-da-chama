@@ -1,17 +1,18 @@
 // Resolução base do jogo (07_DIRECAO_ARTE_AUDIO.md, Seção 1).
-// Nenhum bioma deve usar resolução diferente desta.
 export const GAME_WIDTH = 1280;
 export const GAME_HEIGHT = 720;
 
 // Grid de tile do level design.
 export const TILE_SIZE = 64;
 
-// Altura de referência do protagonista em tela (2,5 tiles).
-export const PLAYER_HEIGHT = 160;
-
 // Célula do spritesheet do protagonista e dos NPCs.
-export const SPRITE_CELL_WIDTH = 96;
-export const SPRITE_CELL_HEIGHT = 160;
+export const SPRITE_CELL_WIDTH = 80;
+export const SPRITE_CELL_HEIGHT = 132;
+
+// O tile de grama tem as pontas das folhas transparentes no topo. Sem esse ajuste,
+// personagens e objetos parecem flutuar acima do chão. Tudo é desenhado
+// levemente "afundado" na grama.
+export const GROUND_VISUAL_OFFSET = 14;
 
 // Referência de física, ajustável em playtest (03_GAMEPLAY_MACRO.md, Seção 2).
 export const PHYSICS_CONFIG = {
@@ -24,10 +25,10 @@ export const PHYSICS_CONFIG = {
 
 // Valores de movimento — referência de design, não spec final (03_GAMEPLAY_MACRO.md, Seção 2).
 export const PLAYER_TUNING = {
-  maxSpeed: 340,
+  maxSpeed: 320,
   acceleration: 2600,
   drag: 2200,
-  jumpVelocity: -820,
+  jumpVelocity: -780,
   // Gravidade extra na queda deixa o pulo "responsivo": sobe rápido, cai mais pesado.
   fallGravityMultiplier: 1.45,
   // Janela após sair da borda em que o pulo ainda é aceito.

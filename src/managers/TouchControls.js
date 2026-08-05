@@ -1,24 +1,19 @@
-import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
 
 // Controles de toque para mobile.
-// Só são criados quando o dispositivo tem touch — no desktop o teclado continua sendo
-// o único input, sem poluir a tela com botões.
+// Só são criados quando o dispositivo tem touch — no desktop o teclado continua
+// sendo o único input, sem poluir a tela com botões.
 export default class TouchControls {
   constructor(scene) {
     this.scene = scene;
     this.enabled = scene.sys.game.device.input.touch;
 
-    this.state = {
-      left: false,
-      right: false,
-      jump: false,
-      attack: false,
-      interact: false,
-    };
-
-    // Flags de "acabou de pressionar", consumidas uma vez por frame pelo InputManager.
+    this.state = { left: false, right: false, jump: false, attack: false, interact: false };
     this.justPressed = { jump: false, attack: false, interact: false };
+
+    // Guarda qual dedo (pointer.id) pressionou cada botão. Sem isso, soltar um dedo
+    // liberava todos os botões e era impossível andar e pular ao mesmo tempo.
+    this.ownerPointer = {};
 
     if (this.enabled) this.build();
   }
@@ -27,7 +22,7 @@ export default class TouchControls {
     const R = 52;
     const bottom = GAME_HEIGHT - 90;
 
-    // D-pad à esquerda, ações à direita — polegar de cada mão.
+    // D-pad à esquerda, ações à direita — um polegar em cada lado.
     this.makeButton(100, bottom, R, '◀', 'left');
     this.makeButton(230, bottom, R, '▶', 'right');
 
@@ -54,14 +49,20 @@ export default class TouchControls {
       .setScrollFactor(0)
       .setDepth(1001);
 
-    const press = () => {
+    const press = (pointer) => {
+      // Se outro dedo já segura este botão, ignora.
+      if (this.ownerPointer[action] !== undefined) return;
+      this.ownerPointer[action] = pointer.id;
       this.state[action] = true;
       if (action in this.justPressed) this.justPressed[action] = true;
       circle.setFillStyle(0xffb84d, 0.4);
       text.setColor('#fff8e6');
     };
 
-    const release = () => {
+    const release = (pointer) => {
+      // Só solta se for o mesmo dedo que pressionou.
+      if (this.ownerPointer[action] !== pointer.id) return;
+      delete this.ownerPointer[action];
       this.state[action] = false;
       circle.setFillStyle(0x000000, 0.35);
       text.setColor('#ffe9b0');
@@ -70,12 +71,14 @@ export default class TouchControls {
     circle.on('pointerdown', press);
     circle.on('pointerup', release);
     circle.on('pointerout', release);
-    // Se o dedo sair do botão sem soltar, o estado não pode ficar travado.
+
+    // Rede de segurança: se o dedo sumir sem disparar pointerup no botão
+    // (ex: arrastou pra fora), o estado não pode ficar travado.
     this.scene.input.on('pointerup', release);
+    this.scene.input.on('pointerupoutside', release);
   }
 
-  // Consome as flags de "just pressed" — precisa ser chamado uma vez por frame,
-  // no fim do update da cena.
+  // Consome as flags de "just pressed" — chamado uma vez por frame, no fim do update.
   clearJustPressed() {
     this.justPressed.jump = false;
     this.justPressed.attack = false;

@@ -19,6 +19,9 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.spritesheet('protagonista', 'assets/sprites/protagonista.png', frameConfig);
     this.load.spritesheet('npc_campones', 'assets/sprites/npc_campones.png', frameConfig);
 
+    // Multitouch precisa ser habilitado antes de qualquer cena de gameplay.
+    this.input.addPointer(3);
+
     // --- UI ---
     this.load.image('retrato_campones', 'assets/ui/retrato_campones.png');
 
