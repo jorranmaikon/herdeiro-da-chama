@@ -85,7 +85,7 @@ export default class Fase1Scene extends Phaser.Scene {
     const layers = [
       { key: 'bg_ceu', base: 430, depth: -100, factor: 0.05, prop: 'bgCeu' },
       { key: 'bg_colinas', base: 545, depth: -90, factor: 0.25, prop: 'bgColinas' },
-      { key: 'bg_arvores', base: 700, depth: -80, factor: 0.5, prop: 'bgArvores' },
+      { key: 'bg_arvores', base: 800, depth: -80, factor: 0.5, prop: 'bgArvores' },
     ];
 
     this.parallaxLayers = layers.map(({ key, base, depth, factor, prop }) => {

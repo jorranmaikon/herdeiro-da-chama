@@ -28,8 +28,8 @@ export const PLATFORMS = [
   [20, GROUND_ROW - 2, 3],
   [33, GROUND_ROW - 2, 3],
   [46, GROUND_ROW - 2, 2],
-  [59, GROUND_ROW - 2, 3],
   [71, GROUND_ROW - 2, 2],
+  [84, GROUND_ROW - 2, 3],
 ];
 
 // Checkpoints da fase (06_INTERFACE_UX.md, Seção 2.2; 05_BALANCEAMENTO.md, Seção 6).
@@ -43,21 +43,25 @@ export const CHECKPOINTS = [
 ];
 
 // Props de cenário (posição em tiles, ancorados pela base).
+// O moinho fica sozinho no trecho de descanso, perto do Camponês e sem cerca
+// nem plataforma por perto — é o marco visual da região e precisa de destaque
+// (02_CONTINENTE.md, Região 0).
 export const PROPS = [
   { key: 'arvore', tileX: 7, depth: -5 },
-  { key: 'moinho', tileX: 35, depth: -5 },
-  { key: 'arvore', tileX: 82, depth: -5 },
+  { key: 'arvore', tileX: 25, depth: -5 },
+  { key: 'moinho', tileX: 62, depth: -5 },
 ];
 
 // Cercas — cada uma delimita algo que existe de fato no cenário, nunca decoração solta.
+// Nenhuma cerca no trecho do moinho — ele precisa ficar isolado.
 export const FENCES = [
-  { startTileX: 31, pieces: 3, reason: 'horta do moinho' },
-  { startTileX: 54, pieces: 3, reason: 'pasto do campones' },
+  { startTileX: 31, pieces: 3, reason: 'horta da vila' },
+  { startTileX: 79, pieces: 2, reason: 'pasto na saida da vila' },
 ];
 
 // NPC principal da fase (09_TEMPLATE_VERTICAL_SLICE.md, Seção 2).
 export const NPC_CAMPONES = {
-  tileX: 58,
+  tileX: 56,
   name: 'Camponês',
   textureKey: 'npc_campones',
   frameCount: 2,

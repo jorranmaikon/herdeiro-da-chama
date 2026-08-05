@@ -44,6 +44,20 @@ const game = new Phaser.Game(config);
 // transições sem reiniciar (08_ARQUITETURA_TECNICA.md, Seção 5).
 game.audio = new AudioManager(game);
 
+// Destrava o áudio no PRIMEIRO gesto do usuário em qualquer lugar da página
+// (não só no botão de som). Assim a música começa sozinha quando ele toca
+// em "INICIAR", sem precisar apertar o ♪.
+const destravarAudio = () => {
+  const ctx = game.sound?.context;
+  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  if (game.sound?.locked) game.sound.unlock?.();
+  const scene = game.scene.getScenes(true)[0];
+  if (scene) game.audio.retry(scene);
+};
+['pointerdown', 'touchend', 'keydown'].forEach((evt) =>
+  document.addEventListener(evt, destravarAudio, { once: false }),
+);
+
 // O navegador suspende o áudio ao trocar de aba/app. Ao voltar, retoma —
 // sem isso a música "para sozinha" depois de um tempo.
 document.addEventListener('visibilitychange', () => {
