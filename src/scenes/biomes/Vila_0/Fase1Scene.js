@@ -85,6 +85,8 @@ export default class Fase1Scene extends Phaser.Scene {
     const layers = [
       { key: 'bg_ceu', base: 430, depth: -100, factor: 0.05, prop: 'bgCeu' },
       { key: 'bg_colinas', base: 545, depth: -90, factor: 0.25, prop: 'bgColinas' },
+      // Árvores com extend mínimo — deixa o verde das colinas visível dentro
+      // das valas (chão ausente), em vez do preenchimento marrom aparecer ali.
       { key: 'bg_arvores', base: 800, depth: -80, factor: 0.5, prop: 'bgArvores' },
     ];
 
@@ -265,12 +267,26 @@ export default class Fase1Scene extends Phaser.Scene {
   }
 
   handleFall() {
-    if (this.isRespawning || this.player.y < this.deathY) return;
+    if (this.isRespawning) return;
+
+    // Usa os PÉS (base do corpo de colisão), não o centro do sprite —
+    // o centro ainda estaria bem acima da linha de morte com a cabeça de fora.
+    const feetY = this.player.body.y + this.player.body.height;
+    if (feetY < this.deathY) return;
 
     this.isRespawning = true;
+
+    // Esconde e congela o personagem NA HORA. Antes ele continuava caindo e
+    // visível durante o fade, e sobrava um pedaço (a cabeça) aparecendo até
+    // a tela escurecer de vez.
+    this.player.setVisible(false);
+    this.player.body.enable = false;
+
     this.cameras.main.fadeOut(280);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.player.respawnAt(this.lastCheckpoint.x, this.lastCheckpoint.y);
+      this.player.body.enable = true;
+      this.player.setVisible(true);
       this.cameras.main.fadeIn(280);
       this.isRespawning = false;
     });
