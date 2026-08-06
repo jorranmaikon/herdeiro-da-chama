@@ -15,7 +15,10 @@ export const TILE = 64;
 // A arte original é reduzida uma única vez (em tools/build_assets.py) e
 // desenhada no jogo em escala 1.0 — nunca ampliada depois.
 // Ampliar arte já reduzida destrói a qualidade e não recupera detalhe.
-export const PLAYER_CELL = 160;
+// 224 e não 160: os quadros de Ataque (rastro da espada) e Morte (corpo
+// deitado) são bem mais largos e vazavam para a célula vizinha, fazendo
+// aparecer pedaço de um quadro dentro de outro.
+export const PLAYER_CELL = 224;
 export const PLAYER_HEIGHT = 128; // ~2 tiles
 
 // O tile de grama tem as pontas das folhas vazadas no topo. Sem este ajuste,

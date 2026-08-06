@@ -74,8 +74,8 @@ export default class Fase1Scene extends Phaser.Scene {
     // tileset cobre o excesso e elas não parecem flutuar.
     const layers = [
       { key: 'bg_ceu', base: 430, factor: 0.05, depth: -100 },
-      { key: 'bg_colinas', base: 545, factor: 0.25, depth: -90 },
-      { key: 'bg_arvores', base: 800, factor: 0.5, depth: -80 },
+      { key: 'bg_colinas', base: 560, factor: 0.25, depth: -90 },
+      { key: 'bg_arvores', base: 720, factor: 0.5, depth: -80 },
     ];
 
     this.parallax = layers.map(({ key, base, factor, depth }) => {

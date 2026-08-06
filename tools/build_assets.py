@@ -19,7 +19,10 @@ OUT = pathlib.Path(__file__).resolve().parent.parent / "public" / "assets"
 # --- Spec técnica (espelha src/config/gameConfig.js) ---
 TILE = 64
 PLAYER_HEIGHT = 128          # 2 tiles — altura do personagem NA TELA
-PLAYER_CELL = 160            # célula do spritesheet = tamanho de exibição
+PLAYER_CELL = 224            # célula do spritesheet = tamanho de exibição
+# 224 e não 160: os quadros de Ataque (rastro da espada) e Morte (corpo
+# deitado) vazavam até 43px para a célula vizinha, fazendo aparecer pedaço de
+# um quadro dentro de outro. A célula precisa comportar o quadro MAIS LARGO.
 NPC_HEIGHT = 140             # NPC adulto, um pouco maior que o protagonista
 NPC_CELL = 176
 
@@ -27,10 +30,16 @@ NPC_CELL = 176
 # ----------------------------------------------------------------------
 # Utilidades
 # ----------------------------------------------------------------------
-def alpha_from_background(rgb, dark_bg=True, thresh=15):
+def alpha_from_background(rgb, dark_bg=True, thresh=15, enclosed_limit=None):
     """Remove o fundo mantendo cores iguais ao fundo que estejam DENTRO do
     personagem (camisa escura, olhos claros, contorno). Só o que está conectado
-    à borda da imagem é considerado fundo."""
+    à borda da imagem é considerado fundo.
+
+    enclosed_limit: se informado, áreas de cor-de-fundo CERCADAS pelo desenho
+    (ex: o vão entre o braço e o corpo na corrida) também são removidas quando
+    maiores que esse limite. Áreas menores são preservadas — são detalhes do
+    desenho, como o brilho do olho.
+    """
     if dark_bg:
         bg_like = np.all(rgb <= thresh, axis=2)
     else:
@@ -40,13 +49,21 @@ def alpha_from_background(rgb, dark_bg=True, thresh=15):
     edges = set(lbl[0, :]) | set(lbl[-1, :]) | set(lbl[:, 0]) | set(lbl[:, -1])
     edges.discard(0)
     bg = np.isin(lbl, list(edges))
+
+    if enclosed_limit is not None:
+        for i in range(1, n + 1):
+            if i in edges:
+                continue
+            if (lbl == i).sum() > enclosed_limit:
+                bg |= lbl == i
+
     return np.where(bg, 0, 255).astype(np.uint8)
 
 
-def split_frames(path, dark_bg=True, gap=15, pad=4):
+def split_frames(path, dark_bg=True, gap=15, pad=4, enclosed_limit=None):
     """Separa os quadros de uma folha de animação em imagens RGBA recortadas."""
     rgb = np.array(Image.open(path).convert("RGB"))
-    alpha = alpha_from_background(rgb, dark_bg)
+    alpha = alpha_from_background(rgb, dark_bg, enclosed_limit=enclosed_limit)
     rgba = np.dstack([rgb, alpha])
 
     col_has = (alpha > 0).any(axis=0)
@@ -118,7 +135,12 @@ PLAYER_ORDER = ["Idle", "Correr", "Pular", "Ataque", "Morte"]
 
 
 def build_player():
-    raw = {name: split_frames(UPLOADS / f, dark_bg=False) for name, f in PLAYER_SHEETS.items()}
+    # enclosed_limit remove o vão entre braço e corpo (aparecia branco no jogo)
+    # sem apagar detalhes pequenos como o brilho do olho.
+    raw = {
+        name: split_frames(UPLOADS / f, dark_bg=False, enclosed_limit=120)
+        for name, f in PLAYER_SHEETS.items()
+    }
 
     # 1) escala relativa: iguala a cabeça de todas as animações à do Idle
     idle_head = np.median([head_metrics(f)[0] for f in raw["Idle"]])
@@ -147,7 +169,11 @@ def build_player():
             )
             # centraliza pela CABEÇA (não pela caixa): a espada esticada no ataque
             # não empurra o corpo pro lado
-            x = round(col * PLAYER_CELL + PLAYER_CELL / 2 - head_cx * scale)
+            local_x = round(PLAYER_CELL / 2 - head_cx * scale)
+            # trava: se o quadro ainda assim ultrapassar a célula, ele é puxado
+            # para dentro em vez de invadir a célula vizinha
+            local_x = max(0, min(local_x, PLAYER_CELL - im.width))
+            x = col * PLAYER_CELL + local_x
             y = row * PLAYER_CELL + (PLAYER_CELL - im.height)  # pés na base
             sheet.alpha_composite(im, (x, y))
 
@@ -228,14 +254,27 @@ def make_seamless(im, fade=48):
 PARALLAX = [
     # (arquivo original, nome, extensão da base em px)
     ("4935253e7b846c7ba6d03ff93949aff5fc68dc5e.png", "bg_ceu", 70),
-    ("fc380d90aaee1d900b46ba4db77217307f55830c.png", "bg_colinas", 260),
+    ("fc380d90aaee1d900b46ba4db77217307f55830c.png", "bg_colinas", 130),
     ("d53f91bb7dcee8c1ffcc147d3c664b87a5c1e7d2.png", "bg_arvores", 40),
 ]
 
 
 def build_parallax():
     for fname, name, extend in PARALLAX:
-        im = Image.open(UPLOADS / fname).convert("RGBA")
+        # As imagens de origem vêm com fundo BRANCO — sem remover, o céu do
+        # jogo virava um bloco branco gigante.
+        rgb = np.array(Image.open(UPLOADS / fname).convert("RGB"))
+        # enclosed_limit baixo: nas camadas de cenário todo vão branco é fundo
+        # (ex: buracos entre os galhos), não existe detalhe branco a preservar.
+        alpha = alpha_from_background(rgb, dark_bg=False, thresh=25, enclosed_limit=8)
+
+        # RECORTA ao conteúdo. As imagens originais têm margem branca enorme em
+        # volta; sem recortar, a camada fica com centenas de px vazios no topo e
+        # o preenchimento da base transforma tudo num bloco sólido gigante.
+        ys, xs = np.where(alpha > 0)
+        rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+
+        im = Image.fromarray(rgba, "RGBA")
         im = im.resize((1280, round(im.height * 1280 / im.width)), Image.LANCZOS)
         a = np.array(im)
 
