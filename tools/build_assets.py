@@ -30,20 +30,32 @@ NPC_CELL = 176
 # ----------------------------------------------------------------------
 # Utilidades
 # ----------------------------------------------------------------------
-def alpha_from_background(rgb, dark_bg=True, thresh=15, enclosed_limit=None):
-    """Remove o fundo mantendo cores iguais ao fundo que estejam DENTRO do
-    personagem (camisa escura, olhos claros, contorno). Só o que está conectado
-    à borda da imagem é considerado fundo.
+def alpha_from_background(rgb, bg_color=(255, 255, 255), thresh=40, enclosed_limit=None, defringe=True):
+    """Remove o fundo de uma imagem chapada.
 
-    enclosed_limit: se informado, áreas de cor-de-fundo CERCADAS pelo desenho
-    (ex: o vão entre o braço e o corpo na corrida) também são removidas quando
-    maiores que esse limite. Áreas menores são preservadas — são detalhes do
-    desenho, como o brilho do olho.
+    bg_color: a cor do fundo, informada explicitamente (padrão branco).
+
+    Nota sobre transparência: as imagens chegam sempre como RGB, sem canal
+    alfa (a transparência é achatada antes, virando PRETO). Por isso o fundo
+    precisa ser uma cor chapada — de preferência BRANCO, que não colide com o
+    contorno escuro do personagem.
+
+    defringe: os pixels de anti-aliasing na borda ficam entre a cor do fundo e
+    a do desenho (ex: cinza claro num fundo branco). Eles não batem no limiar
+    e sobram como um contorno claro em volta do sprite. Aqui a máscara de fundo
+    é expandida 1px para comê-los.
+
+    enclosed_limit: áreas de cor-de-fundo CERCADAS pelo desenho (ex: o vão
+    entre braço e corpo) também são removidas quando maiores que esse limite.
+    Áreas menores são preservadas — são detalhes, como o brilho do olho.
     """
-    if dark_bg:
-        bg_like = np.all(rgb <= thresh, axis=2)
-    else:
-        bg_like = np.all(rgb >= 255 - thresh, axis=2)
+    # A cor do fundo é informada, não adivinhada. Detectar pelos cantos falha
+    # em imagens de cenário (no céu, os cantos são o próprio céu, não o fundo).
+    ref = np.array(bg_color, dtype=np.int16)
+
+    # Distância até a cor do fundo. Tolerância generosa: pega o anti-aliasing.
+    dist = np.abs(rgb.astype(np.int16) - ref).max(axis=2)
+    bg_like = dist <= thresh
 
     lbl, n = ndimage.label(bg_like)
     edges = set(lbl[0, :]) | set(lbl[-1, :]) | set(lbl[:, 0]) | set(lbl[:, -1])
@@ -57,13 +69,16 @@ def alpha_from_background(rgb, dark_bg=True, thresh=15, enclosed_limit=None):
             if (lbl == i).sum() > enclosed_limit:
                 bg |= lbl == i
 
+    if defringe:
+        bg = ndimage.binary_dilation(bg, iterations=1)
+
     return np.where(bg, 0, 255).astype(np.uint8)
 
 
-def split_frames(path, dark_bg=True, gap=15, pad=4, enclosed_limit=None):
+def split_frames(path, gap=15, pad=4, enclosed_limit=None):
     """Separa os quadros de uma folha de animação em imagens RGBA recortadas."""
     rgb = np.array(Image.open(path).convert("RGB"))
-    alpha = alpha_from_background(rgb, dark_bg, enclosed_limit=enclosed_limit)
+    alpha = alpha_from_background(rgb, enclosed_limit=enclosed_limit)
     rgba = np.dstack([rgb, alpha])
 
     col_has = (alpha > 0).any(axis=0)
@@ -138,7 +153,7 @@ def build_player():
     # enclosed_limit remove o vão entre braço e corpo (aparecia branco no jogo)
     # sem apagar detalhes pequenos como o brilho do olho.
     raw = {
-        name: split_frames(UPLOADS / f, dark_bg=False, enclosed_limit=120)
+        name: split_frames(UPLOADS / f, enclosed_limit=120)
         for name, f in PLAYER_SHEETS.items()
     }
 
@@ -266,7 +281,7 @@ def build_parallax():
         rgb = np.array(Image.open(UPLOADS / fname).convert("RGB"))
         # enclosed_limit baixo: nas camadas de cenário todo vão branco é fundo
         # (ex: buracos entre os galhos), não existe detalhe branco a preservar.
-        alpha = alpha_from_background(rgb, dark_bg=False, thresh=25, enclosed_limit=8)
+        alpha = alpha_from_background(rgb, enclosed_limit=8)
 
         # RECORTA ao conteúdo. As imagens originais têm margem branca enorme em
         # volta; sem recortar, a camada fica com centenas de px vazios no topo e
@@ -305,16 +320,10 @@ def build_parallax():
 # ----------------------------------------------------------------------
 # Props, UI e áudio
 # ----------------------------------------------------------------------
-def clean_white(path, thresh=200, erode=1):
+def clean_white(path, enclosed_limit=40):
+    """Remove o fundo branco de uma arte solta (props) e recorta ao conteúdo."""
     rgb = np.array(Image.open(path).convert("RGB"))
-    white = np.all(rgb >= thresh, axis=2)
-    lbl, n = ndimage.label(white)
-    edges = set(lbl[0, :]) | set(lbl[-1, :]) | set(lbl[:, 0]) | set(lbl[:, -1])
-    edges.discard(0)
-    bg = np.isin(lbl, list(edges))
-    if erode:
-        bg = ndimage.binary_dilation(bg, iterations=erode)
-    alpha = np.where(bg, 0, 255).astype(np.uint8)
+    alpha = alpha_from_background(rgb, enclosed_limit=enclosed_limit)
     ys, xs = np.where(alpha > 0)
     rgba = np.dstack([rgb, alpha])
     return Image.fromarray(rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1], "RGBA")
