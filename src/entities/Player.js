@@ -5,10 +5,11 @@ import {
   SPRITE_CELL_WIDTH,
   SPRITE_CELL_HEIGHT,
   GROUND_VISUAL_OFFSET,
+  PLAYER_VISUAL_SCALE,
 } from '../config/gameConfig.js';
 
 // Protagonista (03_GAMEPLAY_MACRO.md, Seções 1-3).
-// Spritesheet 'protagonista' — 80x132 por célula, 4 colunas:
+// Spritesheet 'protagonista' — 64x64 por célula, 4 colunas:
 //   linha 0 = Idle | 1 = Correr | 2 = Pular/Cair | 3 = Ataque | 4 = Morte
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
@@ -17,15 +18,26 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
+    // Escala de exibição (ver PLAYER_VISUAL_SCALE) — precisa vir ANTES do
+    // setSize/setOffset, porque o Arcade Physics multiplica automaticamente
+    // o tamanho e o deslocamento do corpo pela escala do sprite.
+    this.setScale(PLAYER_VISUAL_SCALE);
+
     // Hurtbox menor que o sprite visual (03_GAMEPLAY_MACRO.md, Seção 3).
     // A base do corpo fica ACIMA da base do sprite: assim os pés afundam na grama
     // em vez de parecerem flutuando sobre ela.
+    //
+    // GROUND_VISUAL_OFFSET é um valor fixo de MUNDO (14px, do tileset) — não pode
+    // escalar junto com o personagem, senão o afundamento cresce junto da escala
+    // e o personagem passa a enterrar até o joelho na grama. Por isso dividimos
+    // pela escala aqui: o Arcade Physics vai multiplicar de volta e o resultado
+    // final em pixels de mundo continua sendo exatamente GROUND_VISUAL_OFFSET.
     const bodyW = 22;
     const bodyH = 46;
     this.body.setSize(bodyW, bodyH);
     this.body.setOffset(
       (SPRITE_CELL_WIDTH - bodyW) / 2,
-      SPRITE_CELL_HEIGHT - bodyH - GROUND_VISUAL_OFFSET,
+      SPRITE_CELL_HEIGHT - bodyH - GROUND_VISUAL_OFFSET / PLAYER_VISUAL_SCALE,
     );
     this.setCollideWorldBounds(true);
 

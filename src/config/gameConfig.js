@@ -21,6 +21,12 @@ export const NPC_SPRITE_CELL_HEIGHT = 144;
 // levemente "afundado" na grama.
 export const GROUND_VISUAL_OFFSET = 14;
 
+// O personagem v2 (redesenho) ocupa só ~49px dentro da célula de 64px —
+// bem menor que o NPC Camponês (~144px dentro da célula dele). Escala de
+// exibição pra deixar o jogador perto do tamanho do NPC ("pouca coisa
+// menor"), sem precisar reprocessar o spritesheet.
+export const PLAYER_VISUAL_SCALE = 2.6;
+
 // Cor do topo do céu, usada pra preencher a área acima da textura de fundo
 // sem criar emenda visível.
 export const SKY_COLOR = 0xf6c07e;
