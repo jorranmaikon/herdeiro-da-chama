@@ -9,7 +9,7 @@ import {
 
 // Protagonista (03_GAMEPLAY_MACRO.md, Seções 1-3).
 // Spritesheet 'protagonista' — 80x132 por célula, 4 colunas:
-//   linha 0 = Idle | 1 = Correr | 2 = Pular/Cair | 3 = Ataque | 4 = Hit | 5 = Morte
+//   linha 0 = Idle | 1 = Correr | 2 = Pular/Cair | 3 = Ataque | 4 = Morte
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'protagonista', 0);
@@ -20,8 +20,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // Hurtbox menor que o sprite visual (03_GAMEPLAY_MACRO.md, Seção 3).
     // A base do corpo fica ACIMA da base do sprite: assim os pés afundam na grama
     // em vez de parecerem flutuando sobre ela.
-    const bodyW = 40;
-    const bodyH = 108;
+    const bodyW = 22;
+    const bodyH = 46;
     this.body.setSize(bodyW, bodyH);
     this.body.setOffset(
       (SPRITE_CELL_WIDTH - bodyW) / 2,
@@ -40,14 +40,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   createAnimations(scene) {
     const defs = [
-      // Idle e respiração do NPC ficam lentos de propósito — antes pareciam ofegantes.
+      // Idle lento de propósito — versão anterior parecia ofegante.
       { key: 'player-idle', row: 0, frames: 4, rate: 2.5, repeat: -1 },
       { key: 'player-run', row: 1, frames: 4, rate: 11, repeat: -1 },
       { key: 'player-jump', row: 2, frames: 4, rate: 8, repeat: 0 },
-      // Ataque usa 3 frames — o 4º era a espada quebrada e foi removido do sheet.
-      { key: 'player-attack', row: 3, frames: 3, rate: 13, repeat: 0 },
-      { key: 'player-hit', row: 4, frames: 4, rate: 10, repeat: 0 },
-      { key: 'player-death', row: 5, frames: 4, rate: 7, repeat: 0 },
+      { key: 'player-attack', row: 3, frames: 4, rate: 13, repeat: 0 },
+      { key: 'player-death', row: 4, frames: 4, rate: 7, repeat: 0 },
+      // TODO: 'player-hit' não existe no personagem redesenhado (o novo set não
+      // incluiu animação de dano). Por ora reaproveita o Idle como reação —
+      // trocar assim que a animação de Hit for gerada no novo estilo.
     ];
 
     defs.forEach(({ key, row, frames, rate, repeat }) => {

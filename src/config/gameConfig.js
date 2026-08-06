@@ -5,9 +5,16 @@ export const GAME_HEIGHT = 720;
 // Grid de tile do level design.
 export const TILE_SIZE = 64;
 
-// Célula do spritesheet do protagonista e dos NPCs.
-export const SPRITE_CELL_WIDTH = 120;
-export const SPRITE_CELL_HEIGHT = 144;
+// Célula do spritesheet do protagonista — redesenhado, agora alinhado ao
+// grid de tile (07_DIRECAO_ARTE_AUDIO.md, Seção 1).
+export const SPRITE_CELL_WIDTH = 64;
+export const SPRITE_CELL_HEIGHT = 64;
+
+// Célula do spritesheet dos NPCs. Ainda na escala antiga porque o Camponês
+// não foi redesenhado junto do protagonista — cada spritesheet tem sua própria
+// célula até que os NPCs também sejam atualizados pro novo padrão.
+export const NPC_SPRITE_CELL_WIDTH = 120;
+export const NPC_SPRITE_CELL_HEIGHT = 144;
 
 // O tile de grama tem as pontas das folhas transparentes no topo. Sem esse ajuste,
 // personagens e objetos parecem flutuar acima do chão. Tudo é desenhado

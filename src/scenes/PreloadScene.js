@@ -1,5 +1,12 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, SPRITE_CELL_WIDTH, SPRITE_CELL_HEIGHT } from '../config/gameConfig.js';
+import {
+  GAME_WIDTH,
+  GAME_HEIGHT,
+  SPRITE_CELL_WIDTH,
+  SPRITE_CELL_HEIGHT,
+  NPC_SPRITE_CELL_WIDTH,
+  NPC_SPRITE_CELL_HEIGHT,
+} from '../config/gameConfig.js';
 
 // Carrega assets globais + assets do bioma atual (08_ARQUITETURA_TECNICA.md, Seção 4).
 export default class PreloadScene extends Phaser.Scene {
@@ -10,14 +17,15 @@ export default class PreloadScene extends Phaser.Scene {
   preload() {
     this.showLoadingBar();
 
-    const frameConfig = {
+    // --- Personagens (cada um com a célula do seu próprio spritesheet) ---
+    this.load.spritesheet('protagonista', 'assets/sprites/protagonista.png', {
       frameWidth: SPRITE_CELL_WIDTH,
       frameHeight: SPRITE_CELL_HEIGHT,
-    };
-
-    // --- Personagens ---
-    this.load.spritesheet('protagonista', 'assets/sprites/protagonista.png', frameConfig);
-    this.load.spritesheet('npc_campones', 'assets/sprites/npc_campones.png', frameConfig);
+    });
+    this.load.spritesheet('npc_campones', 'assets/sprites/npc_campones.png', {
+      frameWidth: NPC_SPRITE_CELL_WIDTH,
+      frameHeight: NPC_SPRITE_CELL_HEIGHT,
+    });
 
     // Multitouch precisa ser habilitado antes de qualquer cena de gameplay.
     this.input.addPointer(3);

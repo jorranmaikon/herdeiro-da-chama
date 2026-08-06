@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
-  SPRITE_CELL_WIDTH,
-  SPRITE_CELL_HEIGHT,
+  NPC_SPRITE_CELL_WIDTH,
+  NPC_SPRITE_CELL_HEIGHT,
   GROUND_VISUAL_OFFSET,
 } from '../../config/gameConfig.js';
 
@@ -31,8 +31,8 @@ export default class NPC extends Phaser.Physics.Arcade.Sprite {
     const bodyH = 112;
     this.body.setSize(bodyW, bodyH);
     this.body.setOffset(
-      (SPRITE_CELL_WIDTH - bodyW) / 2,
-      SPRITE_CELL_HEIGHT - bodyH - GROUND_VISUAL_OFFSET,
+      (NPC_SPRITE_CELL_WIDTH - bodyW) / 2,
+      NPC_SPRITE_CELL_HEIGHT - bodyH - GROUND_VISUAL_OFFSET,
     );
     this.body.updateFromGameObject();
 
