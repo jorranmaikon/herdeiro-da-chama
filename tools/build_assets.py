@@ -100,18 +100,25 @@ def head_metrics(frame_rgba):
 # ----------------------------------------------------------------------
 # Protagonista
 # ----------------------------------------------------------------------
+# Folhas de animação com FUNDO BRANCO.
+#
+# Importante: as versões com fundo preto NÃO servem. O contorno do personagem é
+# quase preto, então o preenchimento a partir da borda vazava por dentro do
+# contorno e comia pedaços dele (258px removidos em 157 pontos, deixando o
+# sprite carcomido). Com fundo branco isso não acontece — o personagem quase
+# não tem branco puro encostando na silhueta.
 PLAYER_SHEETS = {
-    "Idle": "D7376176-8935-4FAF-8237-EAF00E64342F.png",
-    "Correr": "0EE971BB-5C57-47BD-9328-8F2BDF5F908B.png",
-    "Pular": "978EF217-F6BF-4755-B614-8E6EFCCF49E2.png",
-    "Ataque": "D1353D2B-55D1-4DD8-BB42-81897FA1A285.png",
-    "Morte": "75760D2D-C1E7-4894-8A96-27873C38172A.png",
+    "Idle": "c23925cc662510a804c74337e083d7c1f36c9192.png",
+    "Correr": "d4ef6eaa760d065d90b16563d41056161a6505d8.png",
+    "Pular": "a9557080f995b0a5c83c82a81692c4d2c123e9f3.png",
+    "Ataque": "0b662ddf6661d4ca6fecc516127b16cc3dfc672c.png",
+    "Morte": "2d704eb375a24ec274c2b74d2758246ee8ac7691.png",
 }
 PLAYER_ORDER = ["Idle", "Correr", "Pular", "Ataque", "Morte"]
 
 
 def build_player():
-    raw = {name: split_frames(UPLOADS / f, dark_bg=True) for name, f in PLAYER_SHEETS.items()}
+    raw = {name: split_frames(UPLOADS / f, dark_bg=False) for name, f in PLAYER_SHEETS.items()}
 
     # 1) escala relativa: iguala a cabeça de todas as animações à do Idle
     idle_head = np.median([head_metrics(f)[0] for f in raw["Idle"]])
