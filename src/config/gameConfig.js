@@ -1,57 +1,52 @@
-// Resolução base do jogo (07_DIRECAO_ARTE_AUDIO.md, Seção 1).
+// =====================================================================
+// Especificação técnica do jogo (07_DIRECAO_ARTE_AUDIO.md, Seção 1).
+// Toda produção de arte respeita estes valores.
+// =====================================================================
+
 export const GAME_WIDTH = 1280;
 export const GAME_HEIGHT = 720;
 
-// Grid de tile do level design.
-export const TILE_SIZE = 64;
+// Grid do level design.
+export const TILE = 64;
 
-// Célula do spritesheet do protagonista — redesenhado, agora alinhado ao
-// grid de tile (07_DIRECAO_ARTE_AUDIO.md, Seção 1).
-export const SPRITE_CELL_WIDTH = 64;
-export const SPRITE_CELL_HEIGHT = 64;
+// REGRA DE OURO DE ESCALA
+// -----------------------
+// A célula do spritesheet tem o tamanho em que o personagem é EXIBIDO.
+// A arte original é reduzida uma única vez (em tools/build_assets.py) e
+// desenhada no jogo em escala 1.0 — nunca ampliada depois.
+// Ampliar arte já reduzida destrói a qualidade e não recupera detalhe.
+export const PLAYER_CELL = 160;
+export const PLAYER_HEIGHT = 128; // ~2 tiles
 
-// Célula do spritesheet dos NPCs. Ainda na escala antiga porque o Camponês
-// não foi redesenhado junto do protagonista — cada spritesheet tem sua própria
-// célula até que os NPCs também sejam atualizados pro novo padrão.
-export const NPC_SPRITE_CELL_WIDTH = 120;
-export const NPC_SPRITE_CELL_HEIGHT = 144;
+// O tile de grama tem as pontas das folhas vazadas no topo. Sem este ajuste,
+// personagens e objetos parecem flutuar acima do chão.
+export const GROUND_INSET = 14;
 
-// O tile de grama tem as pontas das folhas transparentes no topo. Sem esse ajuste,
-// personagens e objetos parecem flutuar acima do chão. Tudo é desenhado
-// levemente "afundado" na grama.
-export const GROUND_VISUAL_OFFSET = 14;
-
-// O personagem v2 (redesenho) ocupa só ~49px dentro da célula de 64px —
-// bem menor que o NPC Camponês (~144px dentro da célula dele). Escala de
-// exibição pra deixar o jogador perto do tamanho do NPC ("pouca coisa
-// menor"), sem precisar reprocessar o spritesheet.
-export const PLAYER_VISUAL_SCALE = 2.6;
-
-// Cor do topo do céu, usada pra preencher a área acima da textura de fundo
-// sem criar emenda visível.
+// Cor do topo do céu — preenche a tela atrás do parallax sem emenda.
 export const SKY_COLOR = 0xf6c07e;
 
-// Referência de física, ajustável em playtest (03_GAMEPLAY_MACRO.md, Seção 2).
-export const PHYSICS_CONFIG = {
-  default: 'arcade',
-  arcade: {
-    gravity: { y: 2200 },
-    debug: false,
-  },
-};
+// Física (03_GAMEPLAY_MACRO.md, Seção 2). Referência de design, ajustável
+// em playtest.
+export const GRAVITY = 2200;
 
-// Valores de movimento — referência de design, não spec final (03_GAMEPLAY_MACRO.md, Seção 2).
 export const PLAYER_TUNING = {
-  maxSpeed: 320,
-  acceleration: 2600,
-  drag: 2200,
+  maxSpeed: 340,
+  acceleration: 2800,
+  drag: 2400,
   jumpVelocity: -880,
-  // Gravidade extra na queda deixa o pulo "responsivo": sobe rápido, cai mais pesado.
+  // Queda mais pesada que a subida — deixa o pulo "responsivo".
   fallGravityMultiplier: 1.45,
-  // Janela após sair da borda em que o pulo ainda é aceito.
+  // Pequena janela após sair da borda em que o pulo ainda é aceito.
   coyoteTimeMs: 110,
-  // Input de pulo pressionado pouco antes de aterrissar ainda é executado.
+  // Pulo pressionado pouco antes de aterrissar ainda é executado.
   jumpBufferMs: 130,
-  // Corta a altura do pulo se o jogador soltar o botão cedo.
+  // Soltar o botão cedo encurta a subida.
   variableJumpCut: 0.45,
 };
+
+// Limites de level design derivados da física acima.
+// Recalcule se mexer em jumpVelocity ou GRAVITY.
+//   altura máxima do pulo .... ~176px = 2,75 tiles -> plataformas até 2 tiles
+//   alcance horizontal ....... ~234px = 3,66 tiles -> vãos até 3 tiles
+export const MAX_PLATFORM_TILES = 2;
+export const MAX_GAP_TILES = 3;

@@ -1,69 +1,49 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, PHYSICS_CONFIG } from './config/gameConfig.js';
-
-import BootScene from './scenes/BootScene.js';
-import PreloadScene from './scenes/PreloadScene.js';
-import MainMenuScene from './scenes/MainMenuScene.js';
-import PauseScene from './scenes/PauseScene.js';
-import DialogueOverlay from './scenes/DialogueOverlay.js';
-import ChronicleScene from './scenes/ChronicleScene.js';
-import MapScene from './scenes/MapScene.js';
-import Fase1Scene from './scenes/biomes/Vila_0/Fase1Scene.js';
+import { GAME_WIDTH, GAME_HEIGHT, GRAVITY } from './config/gameConfig.js';
 import AudioManager from './managers/AudioManager.js';
+import PreloadScene from './scenes/PreloadScene.js';
+import MenuScene from './scenes/MenuScene.js';
+import ContinenteScene from './scenes/ContinenteScene.js';
+import VilaMapaScene from './scenes/VilaMapaScene.js';
+import Fase1Scene from './scenes/biomes/Vila_0/Fase1Scene.js';
 
-// Bootstrap do jogo (08_ARQUITETURA_TECNICA.md, Seção 3).
-const config = {
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
   parent: 'game-container',
   pixelArt: true,
-  // HTML5 Audio em vez de WebAudio: no iOS o WebAudio é silenciado pelo botão
-  // físico de mudo do aparelho, mesmo com o volume no máximo.
+  // HTML5 Audio em vez de WebAudio: no iOS o WebAudio é silenciado pela chave
+  // física de mudo do aparelho, mesmo com o volume no máximo.
   audio: { disableWebAudio: true },
-  physics: PHYSICS_CONFIG,
+  physics: {
+    default: 'arcade',
+    arcade: { gravity: { y: GRAVITY }, debug: false },
+  },
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [
-    BootScene,
-    PreloadScene,
-    MainMenuScene,
-    Fase1Scene,
-    PauseScene,
-    DialogueOverlay,
-    ChronicleScene,
-    MapScene,
-  ],
-};
+  scene: [PreloadScene, MenuScene, ContinenteScene, VilaMapaScene, Fase1Scene],
+});
 
-const game = new Phaser.Game(config);
-
-// Manager global de trilha — vive no jogo, não na cena, pra música atravessar
-// transições sem reiniciar (08_ARQUITETURA_TECNICA.md, Seção 5).
+// Manager de trilha global: vive no jogo, não na cena, pra música atravessar
+// transições sem reiniciar.
 game.audio = new AudioManager(game);
 
-// Destrava o áudio no PRIMEIRO gesto do usuário em qualquer lugar da página
-// (não só no botão de som). Assim a música começa sozinha quando ele toca
-// em "INICIAR", sem precisar apertar o ♪.
+// Destrava o áudio no primeiro gesto em qualquer lugar da página — sem isso
+// a música só começaria depois de tocar no botão de som.
 const destravarAudio = () => {
   const ctx = game.sound?.context;
   if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
-  if (game.sound?.locked) game.sound.unlock?.();
-  const scene = game.scene.getScenes(true)[0];
-  if (scene) game.audio.retry(scene);
+  const cena = game.scene.getScenes(true)[0];
+  if (cena) game.audio.retry(cena);
 };
-['pointerdown', 'touchend', 'keydown'].forEach((evt) =>
-  document.addEventListener(evt, destravarAudio, { once: false }),
+['pointerdown', 'touchend', 'keydown'].forEach((e) =>
+  document.addEventListener(e, destravarAudio),
 );
 
-// O navegador suspende o áudio ao trocar de aba/app. Ao voltar, retoma —
-// sem isso a música "para sozinha" depois de um tempo.
+// O navegador suspende o áudio ao trocar de aba. Ao voltar, retoma.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
-  const ctx = game.sound?.context;
-  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
-  const scene = game.scene.getScenes(true)[0];
-  if (scene) game.audio.retry(scene);
+  if (document.visibilityState === 'visible') destravarAudio();
 });

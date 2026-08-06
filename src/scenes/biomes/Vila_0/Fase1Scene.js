@@ -2,135 +2,119 @@ import Phaser from 'phaser';
 import {
   GAME_WIDTH,
   GAME_HEIGHT,
-  TILE_SIZE,
-  GROUND_VISUAL_OFFSET,
+  TILE,
+  GROUND_INSET,
   SKY_COLOR,
 } from '../../../config/gameConfig.js';
 import Player from '../../../entities/Player.js';
-import NPC from '../../../entities/npcs/NPC.js';
 import InputManager from '../../../managers/InputManager.js';
 import {
   TILES_WIDE,
-  TILES_HIGH,
   GROUND_ROW,
   GROUND_SEGMENTS,
   PLATFORMS,
   CHECKPOINTS,
   PROPS,
   FENCES,
-  NPC_CAMPONES,
-  EXIT_TILE_X,
+  SPAWN_TILE,
+  EXIT_TILE,
 } from './fase1Layout.js';
 
 // Fase 1 da Vila Inicial — "Despertar".
-// Progressão linear: o jogador sempre avança pra direita (06_INTERFACE_UX.md, Seção 2.2).
+// Progressão linear: o jogador sempre avança para a direita.
 export default class Fase1Scene extends Phaser.Scene {
   constructor() {
-    super('Vila0_Fase1');
+    super('Fase1Scene');
   }
 
   create() {
-    const worldWidth = TILES_WIDE * TILE_SIZE;
-    // A altura do mundo é igual à da câmera de propósito: assim a câmera NUNCA
+    const worldWidth = TILES_WIDE * TILE;
+
+    // A altura do mundo é igual à da câmera de propósito: assim a câmera nunca
     // rola na vertical e o cenário não "pula" junto com o jogador.
-    const worldHeight = GAME_HEIGHT;
+    this.physics.world.setBounds(0, 0, worldWidth, GAME_HEIGHT);
+    this.cameras.main.setBounds(0, 0, worldWidth, GAME_HEIGHT);
 
-    this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
-    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
-
-    // Multitouch: sem pointers extras, andar e pular ao mesmo tempo não funciona no celular.
-    this.input.addPointer(3);
+    this.groundY = GROUND_ROW * TILE;
+    this.deathY = this.groundY + TILE; // abaixo disto, a queda é fatal
+    this.morrendo = false;
+    this.saiu = false;
 
     this.controls = new InputManager(this);
-
-    // Y a partir do qual a queda é fatal (bem abaixo do chão, dentro dos vãos).
-    this.deathY = (GROUND_ROW + 1) * TILE_SIZE;
-    this.isRespawning = false;
 
     this.createParallax();
     this.createProps();
     this.createTerrain();
     this.createPlayer();
     this.createCheckpoints();
-    this.createNPCs();
     this.createExit();
     this.createHints();
 
     this.physics.add.collider(this.player, this.solids);
 
-    // Segue apenas no eixo X (lerpY = 0). O nível é plano e o pulo não deve
-    // arrastar a câmera pra cima.
+    // Segue apenas o eixo X (lerpY = 0) — o nível é plano.
     this.cameras.main.startFollow(this.player, true, 0.12, 0);
-    this.cameras.main.setFollowOffset(0, 0);
-    this.game.audio.playMusic(this, 'mus_fase_vila');
-    this.game.audio.createToggleButton(this);
+
+    this.game.audio.play(this, 'mus_fase');
+    this.game.audio.createToggle(this);
+
     this.cameras.main.fadeIn(600);
   }
 
   createParallax() {
-    // Fundo sólido na cor do topo do céu: cobre a área acima da textura sem
-    // deixar a emenda vertical do tileSprite aparecer.
+    // Fundo sólido atrás de tudo: cobre a área acima das texturas sem emenda.
     this.add
       .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, SKY_COLOR)
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(-110);
 
-    // As texturas de fundo foram espelhadas na geração dos assets, então emendam
-    // perfeitamente quando repetidas — sem corte visível.
-    // Linha de base de cada camada. Quanto mais distante, mais ALTA no horizonte:
-    // montanhas > colinas verdes > árvores próximas.
-    // A base das árvores fica abaixo da linha do chão de propósito — o tileset
-    // cobre o excesso e elimina a sensação de que elas flutuam.
+    // Linha de base de cada camada. Quanto mais distante, mais ALTA no
+    // horizonte. A base das árvores fica abaixo do chão de propósito: o
+    // tileset cobre o excesso e elas não parecem flutuar.
     const layers = [
-      { key: 'bg_ceu', base: 430, depth: -100, factor: 0.05, prop: 'bgCeu' },
-      { key: 'bg_colinas', base: 545, depth: -90, factor: 0.25, prop: 'bgColinas' },
-      // Árvores com extend mínimo — deixa o verde das colinas visível dentro
-      // das valas (chão ausente), em vez do preenchimento marrom aparecer ali.
-      { key: 'bg_arvores', base: 800, depth: -80, factor: 0.5, prop: 'bgArvores' },
+      { key: 'bg_ceu', base: 430, factor: 0.05, depth: -100 },
+      { key: 'bg_colinas', base: 545, factor: 0.25, depth: -90 },
+      { key: 'bg_arvores', base: 800, factor: 0.5, depth: -80 },
     ];
 
-    this.parallaxLayers = layers.map(({ key, base, depth, factor, prop }) => {
+    this.parallax = layers.map(({ key, base, factor, depth }) => {
       const img = this.textures.get(key).getSourceImage();
       const sprite = this.add
         .tileSprite(0, base - img.height, GAME_WIDTH, img.height, key)
         .setOrigin(0)
         .setScrollFactor(0)
         .setDepth(depth);
-      this[prop] = sprite;
       return { sprite, factor };
     });
   }
 
   updateParallax() {
     const scrollX = this.cameras.main.scrollX;
-    this.parallaxLayers.forEach(({ sprite, factor }) => {
+    this.parallax.forEach(({ sprite, factor }) => {
       sprite.tilePositionX = scrollX * factor;
     });
   }
 
   createProps() {
     // Objetos ficam levemente afundados na grama, senão parecem flutuar
-    // (o topo do tile de grama é transparente).
-    const baseY = GROUND_ROW * TILE_SIZE + GROUND_VISUAL_OFFSET;
+    // (o topo do tile de grama é vazado).
+    const baseY = this.groundY + GROUND_INSET;
 
-    PROPS.forEach(({ key, tileX, depth }) => {
-      this.add.image(tileX * TILE_SIZE, baseY, key).setOrigin(0.5, 1).setDepth(depth);
+    PROPS.forEach(({ key, tileX }) => {
+      this.add.image(tileX * TILE, baseY, key).setOrigin(0.5, 1).setDepth(-5);
     });
 
-    // As peças de cerca são mais largas que um tile, então o avanço usa a largura
-    // real da textura — senão elas se sobrepõem.
-    FENCES.forEach(({ startTileX, pieces }) => {
-      let x = startTileX * TILE_SIZE;
-
+    // As peças de cerca são mais largas que um tile: o avanço usa a largura
+    // real da textura, senão elas se sobrepõem.
+    FENCES.forEach(({ tileX, pieces }) => {
+      let x = tileX * TILE;
       const poste = this.add.image(x, baseY, 'cerca_poste_esq').setOrigin(0, 1).setDepth(-4);
       x += poste.width;
-
       for (let i = 0; i < pieces; i += 1) {
         const seg = this.add.image(x, baseY, 'cerca').setOrigin(0, 1).setDepth(-4);
         x += seg.width;
       }
-
       this.add.image(x, baseY, 'cerca_poste_dir').setOrigin(0, 1).setDepth(-4);
     });
   }
@@ -138,31 +122,27 @@ export default class Fase1Scene extends Phaser.Scene {
   createTerrain() {
     this.solids = this.physics.add.staticGroup();
 
-    GROUND_SEGMENTS.forEach(([startTile, length]) => {
+    GROUND_SEGMENTS.forEach(([start, length]) => {
       for (let i = 0; i < length; i += 1) {
-        const tileX = startTile + i;
-        this.addSolidTile(tileX, GROUND_ROW, 'tile_grama');
-
-        // Subsolo apenas visual, sem colisão.
-        for (let row = GROUND_ROW + 1; row < TILES_HIGH; row += 1) {
-          this.add
-            .image(tileX * TILE_SIZE, row * TILE_SIZE, 'tile_terra')
-            .setOrigin(0)
-            .setDepth(-2);
+        const tileX = start + i;
+        this.solidTile(tileX, GROUND_ROW);
+        // Subsolo — apenas visual, sem colisão.
+        for (let row = GROUND_ROW + 1; row * TILE < GAME_HEIGHT; row += 1) {
+          this.add.image(tileX * TILE, row * TILE, 'tile_terra').setOrigin(0).setDepth(-2);
         }
       }
     });
 
-    PLATFORMS.forEach(([tileX, tileY, length]) => {
+    PLATFORMS.forEach(([tileX, length]) => {
       for (let i = 0; i < length; i += 1) {
-        this.addSolidTile(tileX + i, tileY, 'tile_grama');
+        this.solidTile(tileX + i, GROUND_ROW - 2);
       }
     });
   }
 
-  addSolidTile(tileX, tileY, textureKey) {
+  solidTile(tileX, tileY) {
     const tile = this.solids
-      .create(tileX * TILE_SIZE, tileY * TILE_SIZE, textureKey)
+      .create(tileX * TILE, tileY * TILE, 'tile_grama')
       .setOrigin(0)
       .setDepth(-1);
     tile.refreshBody();
@@ -170,69 +150,40 @@ export default class Fase1Scene extends Phaser.Scene {
   }
 
   createPlayer() {
-    this.spawnPoint = {
-      x: 2 * TILE_SIZE,
-      y: (GROUND_ROW - 2) * TILE_SIZE,
-    };
-    this.player = new Player(this, this.spawnPoint.x, this.spawnPoint.y);
-    // Começa no início da fase; passa a valer o último checkpoint ativado.
-    this.lastCheckpoint = { ...this.spawnPoint };
+    this.spawn = { x: SPAWN_TILE * TILE, y: (GROUND_ROW - 2) * TILE };
+    this.player = new Player(this, this.spawn.x, this.spawn.y);
+    this.checkpoint = { ...this.spawn };
   }
 
   createCheckpoints() {
-    // Checkpoints explícitos do layout (05_BALANCEAMENTO.md, Seção 6).
-    // Ao morrer, o jogador volta ao último ativado — ou ao início, se nenhum ativou.
-    this.checkpoints = CHECKPOINTS.map(({ tileX }) => {
-      const x = tileX * TILE_SIZE;
-      const y = GROUND_ROW * TILE_SIZE + GROUND_VISUAL_OFFSET;
+    CHECKPOINTS.forEach((tileX) => {
+      const x = tileX * TILE;
+      const baseY = this.groundY + GROUND_INSET;
 
-      const marker = this.add
-        .rectangle(x, y - 60, 8, 96, 0x6b5334)
-        .setOrigin(0.5, 1)
-        .setDepth(-3);
-      const flame = this.add
-        .circle(x, y - 104, 9, 0x5a4a33)
-        .setDepth(-3);
+      this.add.rectangle(x, baseY - 60, 8, 96, 0x6b5334).setOrigin(0.5, 1).setDepth(-3);
+      const chama = this.add.circle(x, baseY - 104, 9, 0x5a4a33).setDepth(-3);
 
-      const zone = this.add.zone(x, y - 60, 60, 140);
-      this.physics.add.existing(zone, true);
+      const zona = this.add.zone(x, baseY - 60, 60, 150);
+      this.physics.add.existing(zona, true);
 
-      // Renasce 2 tiles acima do chão (mesma altura do spawn inicial),
-      // senão o jogador reaparece dentro do solo.
-      const cp = { x, y: (GROUND_ROW - 2) * TILE_SIZE, zone, flame, active: false };
-      this.physics.add.overlap(this.player, zone, () => this.activateCheckpoint(cp));
-      return cp;
+      const cp = { x, y: (GROUND_ROW - 2) * TILE, ativo: false };
+      this.physics.add.overlap(this.player, zona, () => {
+        if (cp.ativo) return;
+        cp.ativo = true;
+        chama.setFillStyle(0xffb84d); // acende: feedback de progresso salvo
+        this.checkpoint = { x: cp.x, y: cp.y };
+      });
     });
   }
 
-  activateCheckpoint(cp) {
-    if (cp.active) return;
-    cp.active = true;
-    // Acende visualmente — feedback de que o ponto foi salvo.
-    cp.flame.setFillStyle(0xffb84d);
-    this.lastCheckpoint = { x: cp.x, y: cp.y };
-  }
-
-  createNPCs() {
-    this.npcs = [];
-    const npc = new NPC(
-      this,
-      NPC_CAMPONES.tileX * TILE_SIZE,
-      GROUND_ROW * TILE_SIZE + GROUND_VISUAL_OFFSET - 66,
-      NPC_CAMPONES,
-    );
-    this.npcs.push(npc);
-  }
-
   createExit() {
-    const x = EXIT_TILE_X * TILE_SIZE;
-    const y = GROUND_ROW * TILE_SIZE;
+    const x = EXIT_TILE * TILE;
 
-    this.exitZone = this.add.zone(x, y - 90, 80, 190);
-    this.physics.add.existing(this.exitZone, true);
+    const zona = this.add.zone(x, this.groundY - 90, 80, 190);
+    this.physics.add.existing(zona, true);
 
     this.add
-      .text(x, y - 200, 'Bosque\nEsmeralda\n▶', {
+      .text(x, this.groundY - 210, 'Bosque\nEsmeralda\n▶', {
         fontFamily: 'monospace',
         fontSize: '20px',
         color: '#ffe9b0',
@@ -242,11 +193,11 @@ export default class Fase1Scene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.exitReached = false;
-    this.physics.add.overlap(this.player, this.exitZone, () => this.finishPhase());
+    this.physics.add.overlap(this.player, zona, () => this.finalizar());
   }
 
   createHints() {
+    const isTouch = this.sys.game.device.input.touch;
     const style = {
       fontFamily: 'monospace',
       fontSize: '18px',
@@ -256,88 +207,48 @@ export default class Fase1Scene extends Phaser.Scene {
       align: 'center',
     };
 
-    // O texto muda conforme o dispositivo — no celular não existe "ESPAÇO".
-    const isTouch = this.sys.game.device.input.touch;
-    const moveHint = isTouch ? '◀ ▶ mover' : '← → mover';
-    const jumpHint = isTouch ? '▲ pular' : 'ESPAÇO pular';
-
-    const baseY = (GROUND_ROW - 3) * TILE_SIZE;
-    this.add.text(3 * TILE_SIZE, baseY, moveHint, style).setOrigin(0.5);
-    this.add.text(14 * TILE_SIZE, baseY, jumpHint, style).setOrigin(0.5);
+    const y = (GROUND_ROW - 3) * TILE;
+    this.add.text(3 * TILE, y, isTouch ? '◀ ▶ mover' : '← → mover', style).setOrigin(0.5);
+    this.add.text(11 * TILE, y, isTouch ? '▲ pular' : 'ESPAÇO pular', style).setOrigin(0.5);
+    this.add.text(22 * TILE, y, isTouch ? '⚔ atacar' : 'X atacar', style).setOrigin(0.5);
   }
 
   handleFall() {
-    if (this.isRespawning) return;
+    if (this.morrendo) return;
 
-    // Usa os PÉS (base do corpo de colisão), não o centro do sprite —
-    // o centro ainda estaria bem acima da linha de morte com a cabeça de fora.
+    // Usa os PÉS, não o centro do sprite — senão a cabeça ainda aparece.
     const feetY = this.player.body.y + this.player.body.height;
     if (feetY < this.deathY) return;
 
-    this.isRespawning = true;
-
-    // Esconde e congela o personagem NA HORA. Antes ele continuava caindo e
-    // visível durante o fade, e sobrava um pedaço (a cabeça) aparecendo até
-    // a tela escurecer de vez.
+    this.morrendo = true;
+    // Some na hora: sem isso o corpo continua caindo visível durante o fade.
     this.player.setVisible(false);
     this.player.body.enable = false;
 
     this.cameras.main.fadeOut(280);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.player.respawnAt(this.lastCheckpoint.x, this.lastCheckpoint.y);
-      this.player.body.enable = true;
-      this.player.setVisible(true);
+      this.player.respawnAt(this.checkpoint.x, this.checkpoint.y);
       this.cameras.main.fadeIn(280);
-      this.isRespawning = false;
+      this.morrendo = false;
     });
   }
 
-  finishPhase() {
-    if (this.exitReached) return;
-    this.exitReached = true;
-
+  finalizar() {
+    if (this.saiu) return;
+    this.saiu = true;
     this.cameras.main.fadeOut(700);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      // TODO: Mapa do Bioma (fases dentro da região) ainda não existe —
-      // por ora volta ao Mapa do Continente (06_INTERFACE_UX.md, Seção 2.2).
-      this.scene.start('MapScene');
-    });
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('VilaMapaScene'));
   }
 
   update(time) {
-    if (this.exitReached) return;
+    if (this.saiu) return;
 
-    const input = this.controls;
-
-    if (!this.isRespawning) {
-      this.player.update(input, time);
-      if (input.attackJustPressed()) this.player.attack();
+    if (!this.morrendo) {
+      this.player.update(this.controls, time);
       this.handleFall();
-      this.handleNPCInteraction(input);
     }
 
     this.updateParallax();
-
-    // Consome os toques deste frame — precisa ser a última linha do update.
-    input.lateUpdate();
-  }
-
-  handleNPCInteraction(input) {
-    this.npcs.forEach((npc) => {
-      npc.facePlayer(this.player);
-      const inRange = npc.isPlayerInRange(this.player);
-      npc.setPromptVisible(inRange);
-
-      if (inRange && input.interactJustPressed()) {
-        // Diálogo pausa o gameplay (06_INTERFACE_UX.md, Seção 4).
-        this.scene.pause();
-        this.scene.launch('DialogueOverlay', {
-          name: npc.npcName,
-          portraitKey: npc.portraitKey,
-          lines: npc.lines,
-          callerScene: this.scene.key,
-        });
-      }
-    });
+    this.controls.lateUpdate();
   }
 }

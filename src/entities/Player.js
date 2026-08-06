@@ -1,16 +1,11 @@
 import Phaser from 'phaser';
-import {
-  PLAYER_TUNING,
-  PHYSICS_CONFIG,
-  SPRITE_CELL_WIDTH,
-  SPRITE_CELL_HEIGHT,
-  GROUND_VISUAL_OFFSET,
-  PLAYER_VISUAL_SCALE,
-} from '../config/gameConfig.js';
+import { PLAYER_TUNING, GRAVITY, PLAYER_CELL, GROUND_INSET } from '../config/gameConfig.js';
 
 // Protagonista (03_GAMEPLAY_MACRO.md, Seções 1-3).
-// Spritesheet 'protagonista' — 64x64 por célula, 4 colunas:
+// Spritesheet 'protagonista' — células de 160x160, 4 colunas:
 //   linha 0 = Idle | 1 = Correr | 2 = Pular/Cair | 3 = Ataque | 4 = Morte
+//
+// O sprite é desenhado em escala 1.0 — a célula já tem o tamanho de exibição.
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'protagonista', 0);
@@ -18,31 +13,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Escala de exibição (ver PLAYER_VISUAL_SCALE) — precisa vir ANTES do
-    // setSize/setOffset, porque o Arcade Physics multiplica automaticamente
-    // o tamanho e o deslocamento do corpo pela escala do sprite.
-    this.setScale(PLAYER_VISUAL_SCALE);
-
-    // Hurtbox menor que o sprite visual (03_GAMEPLAY_MACRO.md, Seção 3).
-    // A base do corpo fica ACIMA da base do sprite: assim os pés afundam na grama
-    // em vez de parecerem flutuando sobre ela.
-    //
-    // GROUND_VISUAL_OFFSET é um valor fixo de MUNDO (14px, do tileset) — não pode
-    // escalar junto com o personagem, senão o afundamento cresce junto da escala
-    // e o personagem passa a enterrar até o joelho na grama. Por isso dividimos
-    // pela escala aqui: o Arcade Physics vai multiplicar de volta e o resultado
-    // final em pixels de mundo continua sendo exatamente GROUND_VISUAL_OFFSET.
-    const bodyW = 22;
-    const bodyH = 46;
+    // Hurtbox menor que o sprite (03_GAMEPLAY_MACRO.md, Seção 3).
+    // A base do corpo fica ACIMA da base da célula: os pés afundam GROUND_INSET
+    // px na grama em vez de parecerem flutuando sobre ela.
+    const bodyW = 46;
+    const bodyH = 104;
     this.body.setSize(bodyW, bodyH);
-    this.body.setOffset(
-      (SPRITE_CELL_WIDTH - bodyW) / 2,
-      SPRITE_CELL_HEIGHT - bodyH - GROUND_VISUAL_OFFSET / PLAYER_VISUAL_SCALE,
-    );
+    this.body.setOffset((PLAYER_CELL - bodyW) / 2, PLAYER_CELL - bodyH - GROUND_INSET);
     this.setCollideWorldBounds(true);
 
-    this.facing = 1;
     this.isAttacking = false;
+    this.isDead = false;
     this.lastGroundedAt = 0;
     this.jumpBufferedAt = -9999;
 
@@ -52,24 +33,20 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   createAnimations(scene) {
     const defs = [
-      // Idle lento de propósito — versão anterior parecia ofegante.
-      { key: 'player-idle', row: 0, frames: 4, rate: 2.5, repeat: -1 },
-      { key: 'player-run', row: 1, frames: 4, rate: 11, repeat: -1 },
-      { key: 'player-jump', row: 2, frames: 4, rate: 8, repeat: 0 },
-      { key: 'player-attack', row: 3, frames: 4, rate: 13, repeat: 0 },
-      { key: 'player-death', row: 4, frames: 4, rate: 7, repeat: 0 },
-      // TODO: 'player-hit' não existe no personagem redesenhado (o novo set não
-      // incluiu animação de dano). Por ora reaproveita o Idle como reação —
-      // trocar assim que a animação de Hit for gerada no novo estilo.
+      { key: 'player-idle', row: 0, rate: 3, repeat: -1 },
+      { key: 'player-run', row: 1, rate: 11, repeat: -1 },
+      { key: 'player-jump', row: 2, rate: 8, repeat: 0 },
+      { key: 'player-attack', row: 3, rate: 14, repeat: 0 },
+      { key: 'player-death', row: 4, rate: 7, repeat: 0 },
     ];
 
-    defs.forEach(({ key, row, frames, rate, repeat }) => {
+    defs.forEach(({ key, row, rate, repeat }) => {
       if (scene.anims.exists(key)) return;
       scene.anims.create({
         key,
         frames: scene.anims.generateFrameNumbers('protagonista', {
           start: row * 4,
-          end: row * 4 + frames - 1,
+          end: row * 4 + 3,
         }),
         frameRate: rate,
         repeat,
@@ -78,19 +55,22 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(input, time) {
-    if (!this.body) return;
+    if (!this.body || this.isDead) return;
 
     const onGround = this.body.blocked.down || this.body.touching.down;
     if (onGround) this.lastGroundedAt = time;
 
-    this.handleHorizontal(input, onGround);
-    this.handleJump(input, time, onGround);
+    this.moveHorizontal(input, onGround);
+    this.handleJump(input, time);
     this.applyFallGravity();
+
+    if (input.attackPressed()) this.attack();
+
     this.updateAnimation(onGround);
   }
 
-  handleHorizontal(input, onGround) {
-    // Durante o ataque o jogador fica ancorado — ataque curto, sem deslizar.
+  moveHorizontal(input, onGround) {
+    // Ataque ancora o jogador no chão — golpe curto, sem deslizar.
     if (this.isAttacking && onGround) {
       this.setAccelerationX(0);
       this.setVelocityX(0);
@@ -101,11 +81,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     if (input.left) {
       this.setAccelerationX(-acceleration);
-      this.facing = -1;
       this.setFlipX(true);
     } else if (input.right) {
       this.setAccelerationX(acceleration);
-      this.facing = 1;
       this.setFlipX(false);
     } else {
       this.setAccelerationX(0);
@@ -115,32 +93,30 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.maxVelocity.x = maxSpeed;
   }
 
-  handleJump(input, time, onGround) {
+  handleJump(input, time) {
     const { jumpVelocity, coyoteTimeMs, jumpBufferMs, variableJumpCut } = PLAYER_TUNING;
 
-    if (input.jumpJustPressed()) this.jumpBufferedAt = time;
+    if (input.jumpPressed()) this.jumpBufferedAt = time;
 
-    const withinCoyote = time - this.lastGroundedAt <= coyoteTimeMs;
-    const withinBuffer = time - this.jumpBufferedAt <= jumpBufferMs;
+    const canCoyote = time - this.lastGroundedAt <= coyoteTimeMs;
+    const buffered = time - this.jumpBufferedAt <= jumpBufferMs;
 
-    if (withinBuffer && withinCoyote && !this.isAttacking) {
+    if (buffered && canCoyote && !this.isAttacking) {
       this.setVelocityY(jumpVelocity);
       this.jumpBufferedAt = -9999;
       this.lastGroundedAt = -9999;
       this.play('player-jump', true);
     }
 
-    // Pulo variável: soltar o botão cedo encurta a subida.
+    // Soltar o botão cedo encurta o pulo.
     if (!input.jumpHeld && this.body.velocity.y < 0) {
       this.setVelocityY(this.body.velocity.y * variableJumpCut);
     }
   }
 
   applyFallGravity() {
-    // Queda mais pesada que a subida (03_GAMEPLAY_MACRO.md, Seção 2).
-    const baseGravity = PHYSICS_CONFIG.arcade.gravity.y;
     const extra = PLAYER_TUNING.fallGravityMultiplier - 1;
-    this.body.setGravityY(this.body.velocity.y > 0 ? baseGravity * extra : 0);
+    this.body.setGravityY(this.body.velocity.y > 0 ? GRAVITY * extra : 0);
   }
 
   attack() {
@@ -152,12 +128,25 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
-  // Reposiciona o jogador após queda em vão (chamado pela cena).
+  /** Toca a animação de morte e avisa quando terminar. */
+  die(onComplete) {
+    if (this.isDead) return;
+    this.isDead = true;
+    this.setVelocity(0, 0);
+    this.setAcceleration(0, 0);
+    this.body.enable = false;
+    this.play('player-death', true);
+    this.once('animationcomplete-player-death', () => onComplete?.());
+  }
+
   respawnAt(x, y) {
+    this.isDead = false;
     this.isAttacking = false;
     this.setVelocity(0, 0);
     this.setAcceleration(0, 0);
     this.setPosition(x, y);
+    this.body.enable = true;
+    this.setVisible(true);
     this.play('player-idle', true);
   }
 
@@ -165,9 +154,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.isAttacking) return;
 
     if (!onGround) {
-      if (this.anims.currentAnim?.key !== 'player-jump') {
-        this.play('player-jump', true);
-      }
+      if (this.anims.currentAnim?.key !== 'player-jump') this.play('player-jump', true);
       return;
     }
 
