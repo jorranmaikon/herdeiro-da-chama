@@ -67,6 +67,7 @@ def read_layout():
         "platforms": pairs("PLATFORMS"),
         "spawn": num("SPAWN_TILE"),
         "dummy": num("TRAINING_DUMMY_TILE"),
+        "anciao": num("ANCIAO_TILE"),
         "bg": objs("BACKGROUND_PROPS"),
         "fg": objs("FOREGROUND_PROPS"),
         "fences": objs("FENCES"),
@@ -151,6 +152,10 @@ def build(L):
     dummy = Image.open(ASSETS / "props" / "alvo_treino.png")
     canvas.alpha_composite(dummy, (int(L["dummy"] * TILE - dummy.width / 2),
                                    GY + GROUND_INSET - dummy.height))
+
+    anciao = Image.open(ASSETS / "npcs" / "anciao.png")
+    canvas.alpha_composite(anciao, (int(L["anciao"] * TILE - anciao.width / 2),
+                                    GY + GROUND_INSET - anciao.height))
 
     player = Image.open(ASSETS / "sprites" / "protagonista.png").crop((0, 0, 224, 224))
     canvas.alpha_composite(player, (L["spawn"] * TILE - 112, GY + GROUND_INSET - 224))

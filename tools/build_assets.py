@@ -89,6 +89,69 @@ def despeckle_white(rgba, thresh=190):
     return out
 
 
+CHROMA = (255, 0, 255)   # magenta puro, cor que não existe na paleta do jogo
+
+
+def alpha_from_chroma(rgb, tol=70):
+    """Fundo magenta -> canal alfa.
+
+    Muito mais confiável que recortar branco: o magenta não aparece em nenhuma
+    paleta do jogo, então não há risco de comer detalhe claro do desenho. Os
+    prompts pedem esse fundo desde que descobrimos o quanto o recorte por
+    branco custava em franja.
+
+    O corte é por distância ao magenta em vez de igualdade exata, porque a
+    borda tem anti-aliasing: ali o pixel é uma mistura de magenta e desenho.
+    """
+    v = rgb.astype(np.int16)
+    dist = np.sqrt(((v - np.array(CHROMA)) ** 2).sum(axis=2))
+    return np.where(dist <= tol, 0, 255).astype(np.uint8)
+
+
+def despill(rgba, tol=70):
+    """Tira o magenta que resta manchando os pixels de borda.
+
+    Um pixel semi-coberto pelo fundo fica arroxeado. Como o desenho não tem
+    magenta, dá para detectar pelo excesso simultâneo de vermelho e azul sobre
+    o verde e rebaixar os dois ao nível do canal verde.
+    """
+    out = rgba.copy()
+    r, g, b = (out[:, :, i].astype(np.int16) for i in range(3))
+    manchado = (out[:, :, 3] > 0) & (r > g + 18) & (b > g + 18)
+    for canal in (0, 2):
+        v = out[:, :, canal].astype(np.int16)
+        out[:, :, canal] = np.where(manchado, np.minimum(v, g + 18), v).astype(np.uint8)
+    return out
+
+
+def maior_componente(alpha):
+    """Mantém só a maior mancha opaca, descartando sujeira solta.
+
+    Os geradores carimbam um brilho em estrela num canto. Quando ele cai sobre
+    o fundo, sobra como um respingo opaco isolado que estraga o recorte —
+    ficar com o maior componente resolve sem precisar caçar a posição dele.
+    """
+    lbl, n = ndimage.label(alpha > 0)
+    if n <= 1:
+        return alpha
+    tamanhos = ndimage.sum(alpha > 0, lbl, range(1, n + 1))
+    maior = int(np.argmax(tamanhos)) + 1
+    return np.where(lbl == maior, alpha, 0).astype(np.uint8)
+
+
+def clean_chroma(path, height, isolar=True):
+    """Recorta uma arte de fundo magenta e reduz para a altura pedida."""
+    rgb = np.array(Image.open(path).convert("RGB"))
+    alpha = alpha_from_chroma(rgb)
+    if isolar:
+        alpha = maior_componente(alpha)
+
+    ys, xs = np.where(alpha > 0)
+    rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    rgba = bleed_alpha(despill(rgba))
+    return to_height(Image.fromarray(rgba, "RGBA"), height)
+
+
 def clean(path, enclosed_limit=200, drop_pale_shadow=False, despeckle=True):
     """Remove o fundo branco de uma arte solta e recorta ao conteúdo.
 
@@ -231,7 +294,14 @@ SRC = {
     "icones":         "9142f4b57d0622b390d94b9b5f12d33fb1762fa3.png",
     "cronica_01":     "059e23fb34a5471bf16ef2698cb9c76172cf6f4d.png",
     "cronica_02":     "279bf8ab41249c814bfaeaa346011de471da56a4.png",
+    # Fundo magenta (#FF00FF), não branco — ver alpha_from_chroma.
+    "anciao_sprite":  "7aa3611c5f9df8a0feccb532c3d5280207aac292.png",
+    "anciao_retrato": "58f967b70814ed53d3f973247fefd899687a4d00.png",
 }
+
+# Altura do Ancião em tela. Menor que os 128px do protagonista: ele é idoso e
+# levemente curvado, e a diferença de porte se lê sem precisar de texto.
+ANCIAO_HEIGHT = 112
 
 # Altura de exibição de cada prop, em px. Derivada do TILE de 64 e da altura do
 # personagem (128px = 2 tiles), para que a escala relativa faça sentido em tela.
@@ -527,8 +597,10 @@ def build_ui_and_narrative():
             OUT / "ui" / "icons" / f"{name}.png"
         )
 
-    # Retrato ancorado na base: o busto encosta no rodapé da caixa de diálogo.
-    _fit(clean(UPLOADS / SRC["retrato_anciao"], enclosed_limit=300), 256,
+    # Ancião: sprite de mundo e retrato de diálogo, ambos com fundo magenta.
+    clean_chroma(UPLOADS / SRC["anciao_sprite"], ANCIAO_HEIGHT).save(
+        OUT / "npcs" / "anciao.png")
+    _fit(clean_chroma(UPLOADS / SRC["anciao_retrato"], 256), 256,
          anchor_bottom=True).save(OUT / "npcs" / "retrato_anciao.png")
 
     # Crônicas: ilustração de fundo inteiro, sem recorte nem transparência.
