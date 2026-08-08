@@ -64,10 +64,26 @@ def alpha_from_white(rgb, thresh=40, enclosed_limit=None, defringe=True):
     return np.where(bg, 0, 255).astype(np.uint8)
 
 
-def clean(path, enclosed_limit=200):
-    """Remove o fundo branco de uma arte solta e recorta ao conteúdo."""
+def clean(path, enclosed_limit=200, drop_pale_shadow=False):
+    """Remove o fundo branco de uma arte solta e recorta ao conteúdo.
+
+    drop_pale_shadow: alguns geradores desenham uma elipse de sombra BEGE sob o
+    objeto. Ela não é branca, então escapa do limiar acima e sobrava como uma
+    mancha clara em volta do sprite. Aqui o recorte é feito por cor: sobra só o
+    que é saturado (a arte) ou escuro (o contorno).
+    """
     rgb = np.array(Image.open(path).convert("RGB"))
     alpha = alpha_from_white(rgb, enclosed_limit=enclosed_limit)
+
+    if drop_pale_shadow:
+        v = rgb.astype(int)
+        sat = v.max(axis=2) - v.min(axis=2)
+        lum = v.mean(axis=2)
+        # A elipse é clara e quase acinzentada; a arte é verde/marrom saturada
+        # ou escura no contorno. Só o que for claro E dessaturado cai fora.
+        sombra = (lum > 145) & (sat < 48)
+        alpha = np.where(sombra, 0, alpha)
+
     ys, xs = np.where(alpha > 0)
     rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
     return Image.fromarray(rgba, "RGBA")
@@ -113,6 +129,31 @@ def crop_group(a, x0, x1):
     sub = a[:, x0:x1 + 1]
     ys, xs = np.where(sub[:, :, 3] > 0)
     return Image.fromarray(sub[ys.min():ys.max() + 1, xs.min():xs.max() + 1], "RGBA")
+
+
+def despeckle_white(rgba, thresh=200):
+    """Apaga pixels quase-brancos SOLTOS no meio de uma arte opaca.
+
+    São vãos minúsculos entre folhas que escapam do recorte de fundo (pequenos
+    demais para o enclosed_limit) e aparecem como pontinhos brancos sobre a
+    copa. Cada um recebe a cor mediana da vizinhança.
+    """
+    rgb = rgba[:, :, :3].astype(int)
+    solto = (rgb.min(axis=2) > thresh) & (rgba[:, :, 3] > 0)
+    if not solto.any():
+        return rgba
+
+    out = rgba.copy()
+    ys, xs = np.where(solto)
+    h, w = solto.shape
+    for y, x in zip(ys, xs):
+        y0, y1 = max(0, y - 3), min(h, y + 4)
+        x0, x1 = max(0, x - 3), min(w, x + 4)
+        viz = rgba[y0:y1, x0:x1]
+        bom = (viz[:, :, 3] > 0) & (viz[:, :, :3].astype(int).min(axis=2) <= thresh)
+        if bom.any():
+            out[y, x, :3] = np.median(viz[:, :, :3][bom], axis=0).astype(np.uint8)
+    return out
 
 
 def seam_fix(a, fade=10):
@@ -172,10 +213,11 @@ CERCA_HEIGHT = 96
 # Props de cenário
 # ----------------------------------------------------------------------
 def build_props():
+    # arbusto e poço vieram com a elipse de sombra bege do gerador
+    PALE_SHADOW = {"arbusto", "poco"}
     for name, height in SIMPLE_PROPS.items():
-        to_height(clean(UPLOADS / SRC[name]), height).save(
-            OUT / "props" / f"{name}.png"
-        )
+        im = clean(UPLOADS / SRC[name], drop_pale_shadow=name in PALE_SHADOW)
+        to_height(im, height).save(OUT / "props" / f"{name}.png")
 
     # Moinho: a folha traz 3 variações; a 1ª é a canônica (única com porta na
     # base de pedra e telhado cônico escuro, conforme aprovado).
@@ -237,7 +279,9 @@ def build_tiles():
         topo = seam_fix(a[0:TILE, x:x + TILE])
         # A grama tem as pontas das folhas vazadas: o branco entre elas vira
         # transparência, senão aparece um bloco branco acima do chão.
-        white = (topo.min(axis=2) > 225) & ((topo.max(axis=2) - topo.min(axis=2)) < 25)
+        # Limiar mais generoso: com 225 sobrava uma franja clara serrilhada
+        # acima das folhas, visivel contra o ceu.
+        white = (topo.min(axis=2) > 198) & ((topo.max(axis=2) - topo.min(axis=2)) < 34)
         Image.fromarray(
             np.dstack([topo, np.where(white, 0, 255).astype(np.uint8)]), "RGBA"
         ).save(OUT / "tiles" / f"tile_topo_{i}.png")
@@ -258,6 +302,87 @@ def build_tiles():
     )
 
     print(f"  {len(TILE_WINDOWS) * 2} tiles de {TILE}x{TILE}px + plataforma")
+
+
+# ----------------------------------------------------------------------
+# Parallax
+# ----------------------------------------------------------------------
+PARALLAX_SRC = {
+    "bg_ceu":     "9574393c9ccc262c968e93eb3300ac1c8d63f3c8.png",
+    "bg_colinas": "212ee489b1e389ccb3c044384f73d8857cc73848.png",
+    "bg_arvores": "194566832edf06813289a9a410c2cf51eca24005.png",
+}
+
+# Altura do horizonte dentro da imagem do céu, em px de um canvas de 720.
+HORIZON_Y = 560
+
+# Quantos px de cor sólida acrescentar abaixo de cada camada. Sem isso, ao
+# olhar por dentro de um vão do chão, via-se o céu por baixo das árvores e elas
+# pareciam flutuar.
+PARALLAX_SKIRT = {"bg_colinas": 200, "bg_arvores": 260}
+
+
+def _clone_over_stamp(rgb, cy=270, cx=955, half=42, src_dx=-260):
+    """Cobre o carimbo em estrela que o gerador aplica sempre no mesmo ponto.
+    Clonagem de um bloco vizinho — inpainting por mediana borrava a copa."""
+    out = rgb.copy()
+    out[cy - half:cy + half, cx - half:cx + half] = \
+        rgb[cy - half:cy + half, cx - half + src_dx:cx + half + src_dx]
+    return out
+
+
+def build_parallax():
+    # Céu: opaco e do tamanho do canvas. Estende com a cor da própria banda
+    # de topo e de base, em vez de ampliar a arte.
+    rgb = _clone_over_stamp(
+        np.array(Image.open(UPLOADS / PARALLAX_SRC["bg_ceu"]).convert("RGB"))
+    )
+    top = np.median(rgb[0:3], axis=(0, 1)).astype(np.uint8)
+    bot = np.median(rgb[-3:], axis=(0, 1)).astype(np.uint8)
+    out = np.zeros((720, rgb.shape[1], 3), np.uint8)
+    y0 = HORIZON_Y - rgb.shape[0]
+    out[:y0], out[y0:HORIZON_Y], out[HORIZON_Y:] = top, rgb, bot
+    Image.fromarray(out).convert("RGBA").save(OUT / "bg" / "bg_ceu.png")
+
+    for name in ["bg_colinas", "bg_arvores"]:
+        rgb = _clone_over_stamp(
+            np.array(Image.open(UPLOADS / PARALLAX_SRC[name]).convert("RGB"))
+        )
+        # enclosed_limit baixo: nas camadas de cenario todo vao branco cercado
+        # pelo desenho e buraco de fundo (entre copas), nao detalhe a preservar.
+        # Sem isso sobravam pontinhos brancos espalhados pela treeline.
+        alpha = alpha_from_white(rgb, enclosed_limit=6)
+        ys, _ = np.where(alpha > 0)
+        rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, :]
+
+        # "Saia" abaixo da camada, para ela nunca terminar no ar — sem isso,
+        # ao olhar por dentro de um vão do chão via-se o céu e as árvores
+        # pareciam flutuar.
+        #
+        # A saia é de cor ÚNICA, não do prolongamento de cada coluna: esticar
+        # coluna a coluna transformava os troncos em listras verticais. Uma
+        # faixa chapada lê como sombra sob a mata.
+        skirt = PARALLAX_SKIRT[name]
+        h, w, _ = rgba.shape
+        base = rgba[max(0, h - 12):h]
+        opaco = base[:, :, 3] > 200
+        fill = (np.median(base[:, :, :3][opaco], axis=0).astype(int)
+                if opaco.any() else np.array([60, 80, 55]))
+        fill = np.clip(fill * 0.82, 0, 255).astype(np.uint8)  # um tom mais escuro
+
+        ext = np.zeros((h + skirt, w, 4), np.uint8)
+        ext[:h] = despeckle_white(rgba)
+        ext[h:, :, :3] = fill
+        ext[h:, :, 3] = 255
+        # tapa também os vãos transparentes acima da linha de base
+        for x in range(w):
+            col = np.where(rgba[:, x, 3] > 200)[0]
+            if len(col):
+                ext[col.max():h, x, :3] = fill
+                ext[col.max():h, x, 3] = 255
+        Image.fromarray(ext, "RGBA").save(OUT / "bg" / f"{name}.png")
+
+    print("  3 camadas de parallax (com saia de base)")
 
 
 # ----------------------------------------------------------------------
@@ -305,13 +430,13 @@ def build_ui_and_narrative():
 
 if __name__ == "__main__":
     print("Gerando assets da Vila Inicial...")
-    for sub in ["props", "tiles", "ui/icons", "npcs", "cronicas"]:
+    for sub in ["props", "tiles", "bg", "ui/icons", "npcs", "cronicas"]:
         (OUT / sub).mkdir(parents=True, exist_ok=True)
     build_props()
     build_tiles()
+    build_parallax()
     build_ui_and_narrative()
     print("Pronto.")
     print()
-    print("NOTA: o spritesheet do protagonista e as camadas de parallax não são")
-    print("geradas aqui — as folhas de origem são de sessões anteriores e não")
-    print("estão mais em UPLOADS. Os arquivos já buildados seguem versionados.")
+    print("NOTA: o spritesheet do protagonista não é gerado aqui — as folhas de")
+    print("origem são de sessões anteriores e não estão mais em UPLOADS.")

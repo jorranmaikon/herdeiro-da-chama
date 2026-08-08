@@ -47,10 +47,13 @@ export default class Fase1Scene extends Phaser.Scene {
   buildParallax() {
     this.cameras.main.setBackgroundColor(SKY_COLOR);
 
+    // As colinas terminam logo abaixo da linha do chao e as arvores bem mais
+    // fundo: assim a treeline nao cobre os montes, e a base das arvores desce
+    // o suficiente para tapar o que se ve por dentro de um vao.
     const layers = [
       { key: 'bg_ceu', scroll: 0, bottom: GAME_HEIGHT },
       { key: 'bg_colinas', scroll: 0.15, bottom: this.groundY + TILE * 0.5 },
-      { key: 'bg_arvores', scroll: 0.35, bottom: this.groundY + TILE * 0.8 },
+      { key: 'bg_arvores', scroll: 0.35, bottom: this.groundY + TILE * 2.5 },
     ];
 
     this.parallax = layers.map(({ key, scroll, bottom }, i) => {
@@ -76,9 +79,9 @@ export default class Fase1Scene extends Phaser.Scene {
   // Marcos e edifícios ficam atrás do plano jogável, com parallax leve.
   // Sem colisão: são fundo (decisão registrada no VS_0_VILA_INICIAL.md).
   buildBackgroundProps() {
-    L.BACKGROUND_PROPS.forEach(({ key, tileX, scroll }) => {
+    L.BACKGROUND_PROPS.forEach(({ key, tileX, scroll, offsetY = 0 }) => {
       this.add
-        .image(tileX * TILE, this.groundY + GROUND_INSET, key)
+        .image(tileX * TILE, this.groundY + GROUND_INSET + offsetY, key)
         .setOrigin(0.5, 1)
         .setScrollFactor(scroll, 1)
         .setDepth(-50);
@@ -169,11 +172,24 @@ export default class Fase1Scene extends Phaser.Scene {
 
     L.FENCES.forEach(({ tileX, pieces }) => {
       const src = this.textures.get('cerca').getSourceImage();
+      const wanted = src.width * pieces;
+      // Encurta a cerca ate a borda do segmento de chao em que ela comeca.
+      // Sem isso ela seguia reta por cima do abismo, denunciando que o cenario
+      // e so decoracao.
+      const width = Math.min(wanted, this.segmentEndX(tileX) - tileX * TILE);
+      if (width < src.width * 0.4) return;
+
       this.add
-        .tileSprite(tileX * TILE, this.groundY + GROUND_INSET, src.width * pieces, src.height, 'cerca')
+        .tileSprite(tileX * TILE, this.groundY + GROUND_INSET, width, src.height, 'cerca')
         .setOrigin(0, 1)
         .setDepth(-5);
     });
+  }
+
+  /** Fim (em px) do segmento de chao que contem este tile. 0 se estiver num vao. */
+  segmentEndX(tileX) {
+    const seg = L.GROUND_SEGMENTS.find(([s, c]) => tileX >= s && tileX < s + c);
+    return seg ? (seg[0] + seg[1]) * TILE : 0;
   }
 
   // --------------------------------------------------------------------
