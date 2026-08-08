@@ -435,11 +435,10 @@ export default class Fase1Scene extends Phaser.Scene {
     this.tutorial.destruir();
 
     this.cameras.main.fadeOut(700);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Sair da vila dispara a Crônica de Partida — é a batida que fecha o
-      // tutorial com peso, em vez de uma transição seca de volta ao mapa.
-      this.scene.start('ChronicleScene', { id: 'cronica_vila_02' });
-    });
+    // Volta ao Mapa da Vila: o jogador ainda NÃO deixou a região. A Crônica de
+    // Partida pertence ao fim da Fase 2 (VS_0_VILA_INICIAL.md, Seção 3) — é
+    // ali que ele efetivamente sai rumo ao Bosque Esmeralda.
+    this.cameras.main.once('camerafadeoutcomplete', () => this.leave());
   }
 
   leave() {

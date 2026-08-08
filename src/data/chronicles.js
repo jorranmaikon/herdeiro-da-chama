@@ -22,6 +22,9 @@ export const CHRONICLES = {
     ],
   },
 
+  // Dispara ao concluir a FASE 2 (exploração), não a Fase 1: é ali que o
+  // protagonista deixa de fato a Vila Inicial. Enquanto a Fase 2 não existe,
+  // esta Crônica fica registrada e sem gatilho.
   cronica_vila_02: {
     imagem: 'cronica_vila_02',
     proxima: 'VilaMapaScene',
