@@ -4,13 +4,18 @@ Pipeline de assets do Herdeiro da Chama.
 REGRA DE OURO: a arte original só é REDUZIDA, uma única vez, e é exibida no jogo
 em escala 1.0. Nunca reduzir e depois ampliar — foi isso que destruiu a qualidade
 do personagem na primeira versão do projeto (411px -> 49px -> ampliado 2.6x).
+A função `to_height` levanta erro se alguém tentar ampliar.
+
+As imagens de origem chegam sempre como RGB, SEM canal alfa (a transparência é
+achatada antes, virando preto). Por isso toda arte é gerada com FUNDO BRANCO e a
+transparência é reconstruída aqui.
 
 Rode a partir da raiz do projeto:  python3 tools/build_assets.py
 """
 
 import pathlib
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image
 from scipy import ndimage
 
 UPLOADS = pathlib.Path("/mnt/user-data/uploads")
@@ -20,40 +25,24 @@ OUT = pathlib.Path(__file__).resolve().parent.parent / "public" / "assets"
 TILE = 64
 PLAYER_HEIGHT = 128          # 2 tiles — altura do personagem NA TELA
 PLAYER_CELL = 224            # célula do spritesheet = tamanho de exibição
-# 224 e não 160: os quadros de Ataque (rastro da espada) e Morte (corpo
-# deitado) vazavam até 43px para a célula vizinha, fazendo aparecer pedaço de
-# um quadro dentro de outro. A célula precisa comportar o quadro MAIS LARGO.
-NPC_HEIGHT = 140             # NPC adulto, um pouco maior que o protagonista
-NPC_CELL = 176
 
 
 # ----------------------------------------------------------------------
 # Utilidades
 # ----------------------------------------------------------------------
-def alpha_from_background(rgb, bg_color=(255, 255, 255), thresh=40, enclosed_limit=None, defringe=True):
-    """Remove o fundo de uma imagem chapada.
+def alpha_from_white(rgb, thresh=40, enclosed_limit=None, defringe=True):
+    """Fundo branco -> canal alfa.
 
-    bg_color: a cor do fundo, informada explicitamente (padrão branco).
+    defringe: os pixels de anti-aliasing na borda ficam entre o branco e a cor
+    do desenho. Não batem no limiar e sobrariam como um halo claro em volta do
+    sprite — por isso a máscara de fundo é expandida 1px para comê-los.
 
-    Nota sobre transparência: as imagens chegam sempre como RGB, sem canal
-    alfa (a transparência é achatada antes, virando PRETO). Por isso o fundo
-    precisa ser uma cor chapada — de preferência BRANCO, que não colide com o
-    contorno escuro do personagem.
-
-    defringe: os pixels de anti-aliasing na borda ficam entre a cor do fundo e
-    a do desenho (ex: cinza claro num fundo branco). Eles não batem no limiar
-    e sobram como um contorno claro em volta do sprite. Aqui a máscara de fundo
-    é expandida 1px para comê-los.
-
-    enclosed_limit: áreas de cor-de-fundo CERCADAS pelo desenho (ex: o vão
-    entre braço e corpo) também são removidas quando maiores que esse limite.
-    Áreas menores são preservadas — são detalhes, como o brilho do olho.
+    enclosed_limit: áreas brancas CERCADAS pelo desenho (ex: o vão entre as
+    travessas de uma cerca) também viram transparência quando maiores que esse
+    limite. Áreas menores são preservadas — são detalhes, como o brilho do olho.
+    Passar None preserva TODOS os vãos internos.
     """
-    # A cor do fundo é informada, não adivinhada. Detectar pelos cantos falha
-    # em imagens de cenário (no céu, os cantos são o próprio céu, não o fundo).
-    ref = np.array(bg_color, dtype=np.int16)
-
-    # Distância até a cor do fundo. Tolerância generosa: pega o anti-aliasing.
+    ref = np.array((255, 255, 255), dtype=np.int16)
     dist = np.abs(rgb.astype(np.int16) - ref).max(axis=2)
     bg_like = dist <= thresh
 
@@ -75,324 +64,254 @@ def alpha_from_background(rgb, bg_color=(255, 255, 255), thresh=40, enclosed_lim
     return np.where(bg, 0, 255).astype(np.uint8)
 
 
-def split_frames(path, gap=15, pad=4, enclosed_limit=None):
-    """Separa os quadros de uma folha de animação em imagens RGBA recortadas."""
+def clean(path, enclosed_limit=200):
+    """Remove o fundo branco de uma arte solta e recorta ao conteúdo."""
     rgb = np.array(Image.open(path).convert("RGB"))
-    alpha = alpha_from_background(rgb, enclosed_limit=enclosed_limit)
-    rgba = np.dstack([rgb, alpha])
+    alpha = alpha_from_white(rgb, enclosed_limit=enclosed_limit)
+    ys, xs = np.where(alpha > 0)
+    rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    return Image.fromarray(rgba, "RGBA")
 
-    col_has = (alpha > 0).any(axis=0)
+
+def to_height(im, h):
+    """Reduz para a altura alvo preservando a proporção.
+
+    Levanta erro em caso de ampliação — a regra de ouro é validada aqui, não
+    confiada à disciplina de quem chama.
+    """
+    if h > im.height:
+        raise ValueError(
+            f"AMPLIACAO PROIBIDA ({im.height}px -> {h}px). "
+            "Gere a arte de origem maior em vez de ampliar aqui."
+        )
+    return im.resize((max(1, round(im.width * h / im.height)), h), Image.LANCZOS)
+
+
+def col_groups(a, min_gap=20):
+    """Agrupa colunas com conteúdo — separa objetos numa mesma folha de arte."""
+    has = (a[:, :, 3] > 0).any(axis=0)
     groups, running = [], False
-    for x in range(rgba.shape[1]):
-        if col_has[x] and not running:
+    for x in range(a.shape[1]):
+        if has[x] and not running:
             start, running = x, True
-        elif not col_has[x] and running:
+        elif not has[x] and running:
             groups.append([start, x - 1])
             running = False
     if running:
-        groups.append([start, rgba.shape[1] - 1])
+        groups.append([start, a.shape[1] - 1])
 
-    # une grupos colados (pedaços soltos do mesmo quadro)
     merged = [groups[0]]
     for s, e in groups[1:]:
-        if s - merged[-1][1] <= gap:
+        if s - merged[-1][1] <= min_gap:
             merged[-1][1] = e
         else:
             merged.append([s, e])
-
-    frames = []
-    for x0, x1 in merged:
-        sub = rgba[:, x0:x1 + 1]
-        ys, xs = np.where(sub[:, :, 3] > 0)
-        y0, y1 = max(ys.min() - pad, 0), min(ys.max() + pad, sub.shape[0])
-        cx0, cx1 = max(xs.min() - pad, 0), min(xs.max() + pad, sub.shape[1])
-        frames.append(sub[y0:y1, cx0:cx1])
-    return frames
+    return merged
 
 
-def head_metrics(frame_rgba):
-    """Largura e centro horizontal da cabeça. É a métrica mais estável entre
-    poses diferentes, usada pra igualar a escala das animações entre si."""
-    m = frame_rgba[:, :, 3] > 0
-    ys, xs = np.where(m)
-    h = ys.max() - ys.min() + 1
-    band = m[ys.min():ys.min() + max(1, int(h * 0.22))]
-    widths, centers = [], []
-    for row in band:
-        nz = row.nonzero()[0]
-        if len(nz):
-            widths.append(nz.max() - nz.min() + 1)
-            centers.append((nz.max() + nz.min()) / 2)
-    return (
-        int(np.percentile(widths, 90)) if widths else 1,
-        float(np.median(centers)) if centers else frame_rgba.shape[1] / 2,
-    )
+def crop_group(a, x0, x1):
+    sub = a[:, x0:x1 + 1]
+    ys, xs = np.where(sub[:, :, 3] > 0)
+    return Image.fromarray(sub[ys.min():ys.max() + 1, xs.min():xs.max() + 1], "RGBA")
 
 
-# ----------------------------------------------------------------------
-# Protagonista
-# ----------------------------------------------------------------------
-# Folhas de animação com FUNDO BRANCO.
-#
-# Importante: as versões com fundo preto NÃO servem. O contorno do personagem é
-# quase preto, então o preenchimento a partir da borda vazava por dentro do
-# contorno e comia pedaços dele (258px removidos em 157 pontos, deixando o
-# sprite carcomido). Com fundo branco isso não acontece — o personagem quase
-# não tem branco puro encostando na silhueta.
-PLAYER_SHEETS = {
-    "Idle": "c23925cc662510a804c74337e083d7c1f36c9192.png",
-    "Correr": "d4ef6eaa760d065d90b16563d41056161a6505d8.png",
-    "Pular": "a9557080f995b0a5c83c82a81692c4d2c123e9f3.png",
-    "Ataque": "0b662ddf6661d4ca6fecc516127b16cc3dfc672c.png",
-    "Morte": "2d704eb375a24ec274c2b74d2758246ee8ac7691.png",
-}
-PLAYER_ORDER = ["Idle", "Correr", "Pular", "Ataque", "Morte"]
+def seam_fix(a, fade=10):
+    """Cross-fade horizontal nas bordas para um recorte fechar consigo mesmo.
 
-
-def build_player():
-    # enclosed_limit remove o vão entre braço e corpo (aparecia branco no jogo)
-    # sem apagar detalhes pequenos como o brilho do olho.
-    raw = {
-        name: split_frames(UPLOADS / f, enclosed_limit=120)
-        for name, f in PLAYER_SHEETS.items()
-    }
-
-    # 1) escala relativa: iguala a cabeça de todas as animações à do Idle
-    idle_head = np.median([head_metrics(f)[0] for f in raw["Idle"]])
-    rel = {}
-    for name, frames in raw.items():
-        heads = [head_metrics(f)[0] for f in frames]
-        # na Morte os quadros deitados não dão medida confiável de cabeça
-        sample = heads[:2] if name == "Morte" else heads
-        rel[name] = idle_head / np.median(sample)
-
-    # 2) escala absoluta: Idle em pé passa a ter PLAYER_HEIGHT px
-    idle_h = np.median([f.shape[0] for f in raw["Idle"]])
-    base = PLAYER_HEIGHT / idle_h
-
-    sheet = Image.new("RGBA", (PLAYER_CELL * 4, PLAYER_CELL * len(PLAYER_ORDER)), (0, 0, 0, 0))
-    for row, name in enumerate(PLAYER_ORDER):
-        scale = rel[name] * base
-        for col in range(4):
-            frames = raw[name]
-            frame = frames[col] if col < len(frames) else frames[-1]
-            _, head_cx = head_metrics(frame)
-            im = Image.fromarray(frame, "RGBA")
-            im = im.resize(
-                (max(1, round(im.width * scale)), max(1, round(im.height * scale))),
-                Image.LANCZOS,
-            )
-            # centraliza pela CABEÇA (não pela caixa): a espada esticada no ataque
-            # não empurra o corpo pro lado
-            local_x = round(PLAYER_CELL / 2 - head_cx * scale)
-            # trava: se o quadro ainda assim ultrapassar a célula, ele é puxado
-            # para dentro em vez de invadir a célula vizinha
-            local_x = max(0, min(local_x, PLAYER_CELL - im.width))
-            x = col * PLAYER_CELL + local_x
-            y = row * PLAYER_CELL + (PLAYER_CELL - im.height)  # pés na base
-            sheet.alpha_composite(im, (x, y))
-
-    sheet.save(OUT / "sprites" / "protagonista.png")
-    print(f"  protagonista.png {sheet.size} | célula {PLAYER_CELL} | altura ~{PLAYER_HEIGHT}px")
-
-
-# ----------------------------------------------------------------------
-# Tiles
-# ----------------------------------------------------------------------
-def build_tiles():
-    src = np.array(Image.open(UPLOADS / "9846876dc4896aabf845c7727b10641f3cd2b843.png").convert("RGB"))
-    sat = src.max(axis=2).astype(int) - src.min(axis=2).astype(int)
-
-    band = sat[153:402, :]
-    colsat = (band > 40).sum(axis=0)
-    runs, running = [], False
-    for x in range(len(colsat)):
-        if colsat[x] > 100 and not running:
-            start, running = x, True
-        elif colsat[x] <= 100 and running:
-            runs.append((start, x - 1))
-            running = False
-
-    names = ["tile_grama", "tile_terra", None, "tile_transicao"]
-    pad = 3
-    for (x0, x1), name in zip(runs, names):
-        if name is None:
-            continue
-        tile = src[153 + pad:402 - pad, x0 + pad:x1 - pad + 1]
-        a = np.array(Image.fromarray(tile).resize((TILE, TILE), Image.LANCZOS))
-        # grama e transição têm o topo vazado: o céu aparece entre as folhas
-        if name in ("tile_grama", "tile_transicao"):
-            white = (a.min(axis=2) > 225) & ((a.max(axis=2) - a.min(axis=2)) < 25)
-            rgba = np.dstack([a, np.where(white, 0, 255).astype(np.uint8)])
-        else:
-            rgba = np.dstack([a, np.full(a.shape[:2], 255, np.uint8)])
-        Image.fromarray(rgba, "RGBA").save(OUT / "tiles" / f"{name}.png")
-
-    cam = np.array(Image.open(UPLOADS / "dcd54fca0664271a15c7fc95f963b288daf670fc.png").convert("RGB"))
-    s = cam.max(axis=2).astype(int) - cam.min(axis=2).astype(int)
-    ys, xs = np.where(s > 30)
-    crop = cam[ys.min() + 3:ys.max() - 2, xs.min() + 3:xs.max() - 2]
-    Image.fromarray(crop).resize((TILE, TILE), Image.LANCZOS).convert("RGBA").save(
-        OUT / "tiles" / "tile_caminho.png"
-    )
-    print(f"  4 tiles de {TILE}x{TILE}px")
-
-
-# ----------------------------------------------------------------------
-# Parallax
-# ----------------------------------------------------------------------
-def make_seamless(im, fade=48):
-    """Emenda invisível: corta nas colunas de menor densidade (vãos entre árvores)
-    e aplica um cross-fade curto. Não usa espelhamento — ele criava um eixo de
-    simetria visível."""
-    a = np.array(im)
-    h, w, _ = a.shape
-    density = (a[:h // 2, :, 3] > 200).sum(axis=0)
-    L = int(w * 0.02) + int(np.argmin(density[int(w * 0.02):int(w * 0.22)]))
-    R = int(w * 0.78) + int(np.argmin(density[int(w * 0.78):int(w * 0.98)]))
-
-    cut = a[:, L:R].astype(np.float32)
-    cw = cut.shape[1]
-    out = cut[:, :cw - fade].copy()
-    tail = cut[:, cw - fade:]
+    Usado nos tiles de chão: a fatia de terreno de origem é tileável como um
+    todo, mas um recorte arbitrário de 64px dela não é.
+    """
+    a = a.astype(np.float32)
+    w = a.shape[1]
+    out = a.copy()
     for i in range(fade):
-        t = i / (fade - 1)
-        A, B = out[:, i], tail[:, i]
-        aA, aB = A[:, 3] / 255.0, B[:, 3] / 255.0
-        alpha = aA * t + aB * (1 - t)
-        rgb = A[:, :3] * aA[:, None] * t + B[:, :3] * aB[:, None] * (1 - t)
-        out[:, i, :3] = np.clip(rgb / np.maximum(alpha, 1e-5)[:, None], 0, 255)
-        out[:, i, 3] = np.clip(alpha * 255, 0, 255)
-    return Image.fromarray(out.astype(np.uint8), "RGBA")
-
-
-PARALLAX = [
-    # (arquivo original, nome, extensão da base em px)
-    ("4935253e7b846c7ba6d03ff93949aff5fc68dc5e.png", "bg_ceu", 70),
-    ("fc380d90aaee1d900b46ba4db77217307f55830c.png", "bg_colinas", 130),
-    ("d53f91bb7dcee8c1ffcc147d3c664b87a5c1e7d2.png", "bg_arvores", 40),
-]
-
-
-def build_parallax():
-    for fname, name, extend in PARALLAX:
-        # As imagens de origem vêm com fundo BRANCO — sem remover, o céu do
-        # jogo virava um bloco branco gigante.
-        rgb = np.array(Image.open(UPLOADS / fname).convert("RGB"))
-        # enclosed_limit baixo: nas camadas de cenário todo vão branco é fundo
-        # (ex: buracos entre os galhos), não existe detalhe branco a preservar.
-        alpha = alpha_from_background(rgb, enclosed_limit=8)
-
-        # RECORTA ao conteúdo. As imagens originais têm margem branca enorme em
-        # volta; sem recortar, a camada fica com centenas de px vazios no topo e
-        # o preenchimento da base transforma tudo num bloco sólido gigante.
-        ys, xs = np.where(alpha > 0)
-        rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-
-        im = Image.fromarray(rgba, "RGBA")
-        im = im.resize((1280, round(im.height * 1280 / im.width)), Image.LANCZOS)
-        a = np.array(im)
-
-        # tapa o vão transparente abaixo da camada com a cor dominante da base,
-        # senão sobra "buraco" no cenário
-        tail = a[-14:]
-        opaque = tail[:, :, 3] > 200
-        fill = (
-            np.median(tail[:, :, :3][opaque], axis=0).astype(np.uint8)
-            if opaque.any()
-            else np.array([60, 50, 35], np.uint8)
-        )
-
-        out = np.zeros((a.shape[0] + extend, a.shape[1], 4), np.uint8)
-        out[: a.shape[0]] = a
-        out[a.shape[0]:, :, :3] = fill
-        out[a.shape[0]:, :, 3] = 255
-        for x in range(a.shape[1]):
-            col = np.where(a[:, x, 3] > 200)[0]
-            if len(col):
-                out[col.max():a.shape[0], x, :3] = fill
-                out[col.max():a.shape[0], x, 3] = 255
-
-        make_seamless(Image.fromarray(out, "RGBA")).save(OUT / "bg" / f"{name}.png")
-    print("  3 camadas de parallax (emenda invisível)")
+        t = i / (fade - 1) if fade > 1 else 1.0
+        out[:, i] = a[:, i] * t + a[:, w - fade + i] * (1 - t)
+    return np.clip(out, 0, 255).astype(np.uint8)
 
 
 # ----------------------------------------------------------------------
-# Props, UI e áudio
+# Arquivos de origem
 # ----------------------------------------------------------------------
-def clean_white(path, enclosed_limit=40):
-    """Remove o fundo branco de uma arte solta (props) e recorta ao conteúdo."""
-    rgb = np.array(Image.open(path).convert("RGB"))
-    alpha = alpha_from_background(rgb, enclosed_limit=enclosed_limit)
-    ys, xs = np.where(alpha > 0)
-    rgba = np.dstack([rgb, alpha])
-    return Image.fromarray(rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1], "RGBA")
+SRC = {
+    "moinho":         "5eeaf215761f0ae1a7f968436af1d0d81c83cc8f.png",  # 3 variações
+    "arvore":         "e08ea593ae41d2888aaf190a74f13c799bbee3cb.png",
+    "casa_taipa":     "40e1e4be0773400a846e3469ada11c48c7a6ddae.png",
+    "casa_madeira":   "c30a7e92e3fc805f5eb311ced843bc3b40a90301.png",
+    "terreno":        "17c8393681e97a78b05cdab69848874b4beaf919.png",
+    "plataforma":     "0a71cda675f2520336a1f8526375b4f3db24efb2.png",
+    "cerca":          "314767a1fe66d1858716ce276dfeee1be0fa8b63.png",
+    "poco":           "8a3b1400da2a915418e10ed5b2f7bfc77bb18ba4.png",
+    "barril_caixa":   "f1b3dca4614667a5f8f71de2bb6446d3030c0793.png",
+    "barraca":        "a77e62905e54a42864cab725d8d7424ba7c4b92c.png",
+    "forja":          "e5d0a6dcd9fbf635f1cd1c921dd605d9a5773f79.png",  # bigorna + forja
+    "arbusto":        "267b1064341e9d31db20b9ef2692f049435548dc.png",
+    "alvo_treino":    "b4532bca517868052399311872e0fa69cbd47d2b.png",
+    "retrato_anciao": "8d346ed9c927c96f6dbd96d083736bc81b33c651.png",
+    "icones":         "9142f4b57d0622b390d94b9b5f12d33fb1762fa3.png",
+    "cronica_01":     "059e23fb34a5471bf16ef2698cb9c76172cf6f4d.png",
+    "cronica_02":     "279bf8ab41249c814bfaeaa346011de471da56a4.png",
+}
+
+# Altura de exibição de cada prop, em px. Derivada do TILE de 64 e da altura do
+# personagem (128px = 2 tiles), para que a escala relativa faça sentido em tela.
+SIMPLE_PROPS = {
+    "arvore": 512,        # 8 tiles — marco visual, o mais alto da vila
+    "casa_taipa": 256,    # 4 tiles
+    "casa_madeira": 256,
+    "barraca": 192,       # 3 tiles
+    "poco": 160,
+    "alvo_treino": 128,   # mesma altura do personagem
+    "arbusto": 64,        # 1 tile
+}
+MOINHO_HEIGHT = 384       # 6 tiles — marco visual
+CERCA_HEIGHT = 96
 
 
+# ----------------------------------------------------------------------
+# Props de cenário
+# ----------------------------------------------------------------------
 def build_props():
-    # árvore e moinho vêm na mesma folha
-    marco = clean_white(UPLOADS / "3eb292f80a9c7b929c6923f9c4e17dbfc7dedefd.png")
-    a = np.array(marco)
-    col_has = (a[:, :, 3] > 0).any(axis=0)
-    groups, running = [], False
-    for x in range(a.shape[1]):
-        if col_has[x] and not running:
-            start, running = x, True
-        elif not col_has[x] and running:
-            groups.append((start, x - 1))
-            running = False
-    if running:
-        groups.append((start, a.shape[1] - 1))
-
-    for (x0, x1), (name, height) in zip(groups, [("arvore", 340), ("moinho", 300)]):
-        sub = a[:, x0:x1 + 1]
-        ys, xs = np.where(sub[:, :, 3] > 0)
-        crop = Image.fromarray(sub[ys.min():ys.max() + 1, xs.min():xs.max() + 1], "RGBA")
-        s = height / crop.height
-        crop.resize((round(crop.width * s), height), Image.LANCZOS).save(
+    for name, height in SIMPLE_PROPS.items():
+        to_height(clean(UPLOADS / SRC[name]), height).save(
             OUT / "props" / f"{name}.png"
         )
 
-    # cercas: 3 peças na mesma folha
-    cerca = clean_white(UPLOADS / "78e5cd15b5bd8bc36e916fbac4c3d08950ce0c91.png")
-    a = np.array(cerca)
-    col_has = (a[:, :, 3] > 0).any(axis=0)
-    groups, running = [], False
-    for x in range(a.shape[1]):
-        if col_has[x] and not running:
-            start, running = x, True
-        elif not col_has[x] and running:
-            groups.append((start, x - 1))
-            running = False
-    if running:
-        groups.append((start, a.shape[1] - 1))
+    # Moinho: a folha traz 3 variações; a 1ª é a canônica (única com porta na
+    # base de pedra e telhado cônico escuro, conforme aprovado).
+    a = np.array(clean(UPLOADS / SRC["moinho"]))
+    x0, x1 = col_groups(a)[0]
+    to_height(crop_group(a, x0, x1), MOINHO_HEIGHT).save(OUT / "props" / "moinho.png")
 
-    for (x0, x1), name in zip(groups, ["cerca", "cerca_poste_esq", "cerca_poste_dir"]):
-        sub = a[:, x0:x1 + 1]
-        ys, xs = np.where(sub[:, :, 3] > 0)
-        crop = Image.fromarray(sub[ys.min():ys.max() + 1, xs.min():xs.max() + 1], "RGBA")
-        s = 72 / crop.height
-        crop.resize((round(crop.width * s), 72), Image.LANCZOS).save(
-            OUT / "props" / f"{name}.png"
-        )
-    print("  árvore, moinho e 3 peças de cerca")
-
-
-def build_ui():
-    Image.open(UPLOADS / "cfa7bff786d5fea99da8695da729daf4affc078f.png").convert("RGB").resize(
-        (1280, 720), Image.LANCZOS
-    ).save(OUT / "ui" / "capa_menu.png")
-    Image.open(UPLOADS / "845dcbae6e0fb80a1902fc95b8dc5fcd579d983b.png").convert("RGB").save(
-        OUT / "ui" / "mapa_continente.png"
+    # Cerca: repete lado a lado, então a largura NÃO é recortada — as travessas
+    # encostam de propósito nas bordas para a emenda fechar.
+    # enclosed_limit=None preserva os vãos entre as travessas.
+    rgb = np.array(Image.open(UPLOADS / SRC["cerca"]).convert("RGB"))
+    alpha = alpha_from_white(rgb, enclosed_limit=None)
+    ys, _ = np.where(alpha > 0)
+    rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, :]
+    to_height(Image.fromarray(rgba, "RGBA"), CERCA_HEIGHT).save(
+        OUT / "props" / "cerca.png"
     )
-    print("  capa do menu e mapa do continente")
+
+    # Pares na mesma folha: ambos escalados pelo MESMO fator, senão a relação de
+    # tamanho entre os dois objetos se perde (a bigorna sairia do tamanho da forja).
+    _build_pair("barril_caixa", ["barril", "caixa"], ref=0, ref_height=96)
+    _build_pair("forja", ["bigorna", "forja"], ref=1, ref_height=160)
+
+    print(f"  {len(SIMPLE_PROPS) + 6} props de cenário")
+
+
+def _build_pair(src_key, names, ref, ref_height):
+    a = np.array(clean(UPLOADS / SRC[src_key]))
+    crops = [crop_group(a, x0, x1) for x0, x1 in col_groups(a)]
+    scale = ref_height / crops[ref].height
+    for c, n in zip(crops, names):
+        size = (max(1, round(c.width * scale)), max(1, round(c.height * scale)))
+        c.resize(size, Image.LANCZOS).save(OUT / "props" / f"{n}.png")
+
+
+# ----------------------------------------------------------------------
+# Tiles de chão
+# ----------------------------------------------------------------------
+# Três variações de cada tile, recortadas de janelas distantes da mesma fatia de
+# terreno. Com uma variação só, a mesma pedrinha reaparece a cada 64px e a
+# repetição fica óbvia; alternando três, o chão parece contínuo.
+TILE_WINDOWS = [120, 420, 720]
+
+
+def build_tiles():
+    rgb = np.array(Image.open(UPLOADS / SRC["terreno"]).convert("RGB"))
+    nonwhite = np.abs(rgb.astype(int) - 255).max(axis=2) > 40
+    top = int(np.argmax(nonwhite.sum(axis=1) > 50))
+    crop = rgb[top:, :]
+
+    # Normaliza para 4 tiles de altura. É REDUÇÃO (268 -> 256).
+    im = Image.fromarray(crop).resize(
+        (round(crop.shape[1] * TILE * 4 / crop.shape[0]), TILE * 4), Image.LANCZOS
+    )
+    a = np.array(im)
+
+    for i, x in enumerate(TILE_WINDOWS):
+        # topo = grama + primeira camada de terra
+        topo = seam_fix(a[0:TILE, x:x + TILE])
+        # A grama tem as pontas das folhas vazadas: o branco entre elas vira
+        # transparência, senão aparece um bloco branco acima do chão.
+        white = (topo.min(axis=2) > 225) & ((topo.max(axis=2) - topo.min(axis=2)) < 25)
+        Image.fromarray(
+            np.dstack([topo, np.where(white, 0, 255).astype(np.uint8)]), "RGBA"
+        ).save(OUT / "tiles" / f"tile_topo_{i}.png")
+
+        # fill = terra do meio, a faixa mais neutra
+        fill = seam_fix(a[TILE * 2:TILE * 3, x:x + TILE])
+        Image.fromarray(
+            np.dstack([fill, np.full(fill.shape[:2], 255, np.uint8)]), "RGBA"
+        ).save(OUT / "tiles" / f"tile_fill_{i}.png")
+
+    # Plataforma suspensa: base acabada, repete na horizontal.
+    rgb = np.array(Image.open(UPLOADS / SRC["plataforma"]).convert("RGB"))
+    alpha = alpha_from_white(rgb, enclosed_limit=8)
+    ys, xs = np.where(alpha > 0)
+    rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    to_height(Image.fromarray(rgba, "RGBA"), TILE * 2).save(
+        OUT / "props" / "plataforma.png"
+    )
+
+    print(f"  {len(TILE_WINDOWS) * 2} tiles de {TILE}x{TILE}px + plataforma")
+
+
+# ----------------------------------------------------------------------
+# UI, NPCs e Crônicas
+# ----------------------------------------------------------------------
+ICON_NAMES = ["icone_checkpoint", "icone_npc", "icone_saida", "icone_bloqueado"]
+ICON_SIZE = 48
+
+
+def _fit(im, size, anchor_bottom=False):
+    """Encaixa numa tela quadrada sem distorcer e sem ampliar."""
+    s = size / max(im.size)
+    r = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))),
+                  Image.LANCZOS)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    y = size - r.height if anchor_bottom else (size - r.height) // 2
+    canvas.alpha_composite(r, ((size - r.width) // 2, y))
+    return canvas
+
+
+def build_ui_and_narrative():
+    # Ícones: a folha veio com o nome escrito abaixo de cada um (o gerador
+    # ignorou a proibição de texto). O corte descarta essa faixa.
+    rgb = np.array(Image.open(UPLOADS / SRC["icones"]).convert("RGB"))
+    icons = rgb[35:208, :]
+    a = np.dstack([icons, alpha_from_white(icons, enclosed_limit=None)])
+    for (x0, x1), name in zip(col_groups(a, min_gap=15), ICON_NAMES):
+        _fit(crop_group(a, x0, x1), ICON_SIZE).save(
+            OUT / "ui" / "icons" / f"{name}.png"
+        )
+
+    # Retrato ancorado na base: o busto encosta no rodapé da caixa de diálogo.
+    _fit(clean(UPLOADS / SRC["retrato_anciao"], enclosed_limit=300), 256,
+         anchor_bottom=True).save(OUT / "npcs" / "retrato_anciao.png")
+
+    # Crônicas: ilustração de fundo inteiro, sem recorte nem transparência.
+    for key, name in [("cronica_01", "cronica_vila_01"),
+                      ("cronica_02", "cronica_vila_02")]:
+        Image.open(UPLOADS / SRC[key]).convert("RGB").save(
+            OUT / "cronicas" / f"{name}.png"
+        )
+
+    print(f"  {len(ICON_NAMES)} ícones, 1 retrato, 2 Crônicas")
 
 
 if __name__ == "__main__":
-    print("Gerando assets...")
-    build_player()
-    build_tiles()
-    build_parallax()
+    print("Gerando assets da Vila Inicial...")
+    for sub in ["props", "tiles", "ui/icons", "npcs", "cronicas"]:
+        (OUT / sub).mkdir(parents=True, exist_ok=True)
     build_props()
-    build_ui()
-    print("Pronto. (o áudio é copiado à parte, já comprimido)")
+    build_tiles()
+    build_ui_and_narrative()
+    print("Pronto.")
+    print()
+    print("NOTA: o spritesheet do protagonista e as camadas de parallax não são")
+    print("geradas aqui — as folhas de origem são de sessões anteriores e não")
+    print("estão mais em UPLOADS. Os arquivos já buildados seguem versionados.")
