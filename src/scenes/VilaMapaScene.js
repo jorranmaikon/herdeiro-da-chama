@@ -17,7 +17,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
 // o sentido da jornada no mapa, de fora para dentro do continente.
 const FASES = [
   { id: 1, nome: 'Despertar', x: 638, y: 501, cena: 'Fase1Scene', liberada: true },
-  { id: 2, nome: 'Arredores', x: 604, y: 232, liberada: false },
+  { id: 2, nome: 'Arredores', x: 604, y: 232, cena: 'Fase2Scene', liberada: true },
 ];
 
 export default class VilaMapaScene extends Phaser.Scene {

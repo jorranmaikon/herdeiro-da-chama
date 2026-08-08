@@ -297,6 +297,8 @@ SRC = {
     # Fundo magenta (#FF00FF), não branco — ver alpha_from_chroma.
     "anciao_sprite":  "7aa3611c5f9df8a0feccb532c3d5280207aac292.png",
     "anciao_retrato": "58f967b70814ed53d3f973247fefd899687a4d00.png",
+    "checkpoint":     "25d7b4326fb88346d14715d28b64b213e1868c9e.png",
+    "item_cura":      "fcf3f3422569e409cd60f48c9bc7e2f853f8b753.png",
 }
 
 # Altura do Ancião em tela. Menor que os 128px do protagonista: ele é idoso e
@@ -356,6 +358,14 @@ def build_props():
     # tamanho entre os dois objetos se perde (a bigorna sairia do tamanho da forja).
     _build_pair("barril_caixa", ["barril", "caixa"], ref=0, ref_height=96)
     _build_pair("forja", ["bigorna", "forja"], ref=1, ref_height=160)
+
+    # Fundo magenta (Seção 10.1 do 07_DIRECAO_ARTE_AUDIO.md).
+    # O marco de pedra faz as vezes de ponto de descanso: fogueira acesa
+    # produziria laranja incandescente, cor reservada à Chama.
+    clean_chroma(UPLOADS / SRC["checkpoint"], 96).save(
+        OUT / "props" / "checkpoint.png")
+    clean_chroma(UPLOADS / SRC["item_cura"], 48).save(
+        OUT / "props" / "item_cura.png")
 
     print(f"  {len(SIMPLE_PROPS) + 6} props de cenário")
 

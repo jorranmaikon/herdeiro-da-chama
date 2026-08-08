@@ -28,9 +28,9 @@ ARVORES_SKIRT = 280   # px de saia sólida abaixo da treeline
 COLINAS_TOP = 300     # y do topo dos montes, acima da copa das árvores
 
 
-def read_layout():
+def read_layout(arquivo="fase1Layout.js"):
     """Extrai os dados do layout direto do .js, para não duplicar valores."""
-    src = (ROOT / "src" / "scenes" / "biomes" / "Vila_0" / "fase1Layout.js").read_text()
+    src = (ROOT / "src" / "scenes" / "biomes" / "Vila_0" / arquivo).read_text()
 
     def num(name):
         return int(re.search(rf"{name}\s*=\s*(\d+)", src).group(1))
@@ -65,9 +65,13 @@ def read_layout():
         "fill_rows": num("FILL_ROWS"),
         "segments": [(x[0], x[1]) for x in pairs("GROUND_SEGMENTS")],
         "platforms": pairs("PLATFORMS"),
+        "checkpoints": [int(v) for v in re.findall(
+            r"\d+", re.search(r"CHECKPOINTS\s*=\s*\[([^\]]*)\]", src).group(1))],
         "spawn": num("SPAWN_TILE"),
-        "dummy": num("TRAINING_DUMMY_TILE"),
-        "anciao": num("ANCIAO_TILE"),
+        "dummy": num("TRAINING_DUMMY_TILE") if "TRAINING_DUMMY_TILE" in src else None,
+        "anciao": num("ANCIAO_TILE") if "ANCIAO_TILE" in src else None,
+        "cura": float(re.search(r"ITEM_CURA_TILE\s*=\s*([\d.]+)", src).group(1))
+        if "ITEM_CURA_TILE" in src else None,
         "bg": objs("BACKGROUND_PROPS"),
         "fg": objs("FOREGROUND_PROPS"),
         "fences": objs("FENCES"),
@@ -111,6 +115,12 @@ def build(L):
             for r in range(1, L["fill_rows"] + 1):
                 canvas.alpha_composite(fills[(tx + r) % 3], (tx * TILE, GY + r * TILE))
 
+    # Marcos de checkpoint, com a arte do marco de pedra.
+    marco = Image.open(ASSETS / "props" / "checkpoint.png")
+    for tileX in L["checkpoints"]:
+        canvas.alpha_composite(marco, (int(tileX * TILE - marco.width / 2),
+                                       GY + GROUND_INSET - marco.height))
+
     # Mesma montagem em três peças da cena: pontas arredondadas fixas e o
     # miolo repetindo entre elas.
     p_esq = Image.open(ASSETS / "props" / "plataforma_esq.png")
@@ -149,13 +159,20 @@ def build(L):
             im, (int(p["tileX"] * TILE - im.width / 2),
                  GY + GROUND_INSET - im.height))
 
-    dummy = Image.open(ASSETS / "props" / "alvo_treino.png")
-    canvas.alpha_composite(dummy, (int(L["dummy"] * TILE - dummy.width / 2),
-                                   GY + GROUND_INSET - dummy.height))
+    if L["dummy"] is not None:
+        dummy = Image.open(ASSETS / "props" / "alvo_treino.png")
+        canvas.alpha_composite(dummy, (int(L["dummy"] * TILE - dummy.width / 2),
+                                       GY + GROUND_INSET - dummy.height))
 
-    anciao = Image.open(ASSETS / "npcs" / "anciao.png")
-    canvas.alpha_composite(anciao, (int(L["anciao"] * TILE - anciao.width / 2),
-                                    GY + GROUND_INSET - anciao.height))
+    if L["anciao"] is not None:
+        anciao = Image.open(ASSETS / "npcs" / "anciao.png")
+        canvas.alpha_composite(anciao, (int(L["anciao"] * TILE - anciao.width / 2),
+                                        GY + GROUND_INSET - anciao.height))
+
+    if L["cura"] is not None:
+        cura = Image.open(ASSETS / "props" / "item_cura.png")
+        canvas.alpha_composite(cura, (int(L["cura"] * TILE - cura.width / 2),
+                                      GY + GROUND_INSET - cura.height))
 
     player = Image.open(ASSETS / "sprites" / "protagonista.png").crop((0, 0, 224, 224))
     canvas.alpha_composite(player, (L["spawn"] * TILE - 112, GY + GROUND_INSET - 224))
@@ -164,12 +181,16 @@ def build(L):
 
 
 if __name__ == "__main__":
+    import sys
     OUT.mkdir(exist_ok=True)
-    L = read_layout()
-    img = build(L)
-    img.save(OUT / "fase1_completa.png")
-    img.resize((img.width // 5, img.height // 5), Image.LANCZOS).save(
-        OUT / "fase1_geral.png")
-    print(f"{img.width}x{img.height}px  ({L['wide']} tiles)")
-    print(f"  {OUT / 'fase1_completa.png'}")
-    print(f"  {OUT / 'fase1_geral.png'}")
+    fases = sys.argv[1:] or ["1", "2"]
+    for n in fases:
+        arquivo = f"fase{n}Layout.js"
+        if not (ROOT / "src" / "scenes" / "biomes" / "Vila_0" / arquivo).exists():
+            continue
+        L = read_layout(arquivo)
+        img = build(L)
+        img.save(OUT / f"fase{n}_completa.png")
+        img.resize((img.width // 5, img.height // 5), Image.LANCZOS).save(
+            OUT / f"fase{n}_geral.png")
+        print(f"Fase {n}: {img.width}x{img.height}px  ({L['wide']} tiles)")
