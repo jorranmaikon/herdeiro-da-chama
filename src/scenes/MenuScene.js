@@ -15,10 +15,11 @@ export default class MenuScene extends Phaser.Scene {
     this.game.audio.play(this, 'mus_titulo');
     this.game.audio.createToggle(this);
 
-    // Coordenadas dos botões desenhados na capa.
-    this.hotspot(1046, 176, 300, 92, () => this.start());
-    this.hotspot(1046, 322, 300, 92, () => this.notice('Bestiário ainda não implementado'));
-    this.hotspot(1046, 470, 300, 92, () => this.notice('Sair ainda não implementado'));
+    // Coordenadas dos botões desenhados na capa, convertidas da resolução da
+    // arte (1024x572) para o canvas.
+    this.hotspot(646, 344, 330, 40, () => this.start());
+    this.hotspot(646, 384, 330, 40, () => this.notice('Nenhum jogo salvo ainda'));
+    this.hotspot(646, 424, 330, 40, () => this.notice('Bestiário ainda não implementado'));
 
     this.noticeText = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - 26, '', {
@@ -53,6 +54,9 @@ export default class MenuScene extends Phaser.Scene {
     if (this.starting) return;
     this.starting = true;
     this.cameras.main.fadeOut(500);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('ContinenteScene'));
+    // Novo jogo abre pela Crônica de Abertura, antes de qualquer gameplay
+    // (VS_0_VILA_INICIAL.md, Seção 2). Ela leva ao Mapa do Continente.
+    this.cameras.main.once('camerafadeoutcomplete', () =>
+      this.scene.start('ChronicleScene', { id: 'cronica_vila_01' }));
   }
 }

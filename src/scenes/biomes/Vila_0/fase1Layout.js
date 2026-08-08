@@ -56,6 +56,10 @@ export const EXIT_TILE = 103;
 // qualquer prop — na primeira montagem ele sumia no cenário.
 export const TRAINING_DUMMY_TILE = 44;
 
+// O Ancião fica junto ao poço, no coração da vila. Pelo VS_0 ele pertence à
+// Fase 2 (exploração); enquanto ela não existe, mora aqui.
+export const ANCIAO_TILE = 76;
+
 // --- Cenário ---------------------------------------------------------------
 // Camada de FUNDO: parallax leve (scrollFactor < 1), sem colisão.
 // offsetY afunda o prop no chão — a árvore tem raízes que se espalham para os

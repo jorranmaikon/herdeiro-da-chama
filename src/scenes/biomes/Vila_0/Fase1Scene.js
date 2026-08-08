@@ -8,7 +8,9 @@ import {
 // desce menos do que o GROUND_INSET usado nos tiles de terreno.
 const PLATFORM_INSET = 6;
 import Player from '../../../entities/Player.js';
+import NPC from '../../../entities/npcs/NPC.js';
 import InputManager from '../../../managers/InputManager.js';
+import TutorialHints from './TutorialHints.js';
 import * as L from './fase1Layout.js';
 
 // Fase 1 da Vila Inicial (Região 0).
@@ -35,9 +37,11 @@ export default class Fase1Scene extends Phaser.Scene {
     this.buildForegroundProps();
     this.buildCheckpoints();
     this.buildTrainingDummy();
+    this.buildAnciao();
     this.buildExit();
     this.buildPlayer();
     this.buildCamera();
+    this.buildTutorial();
 
     this.input.keyboard.on('keydown-ESC', () => this.leave());
     this.game.audio.play(this, 'mus_fase');
@@ -293,6 +297,44 @@ export default class Fase1Scene extends Phaser.Scene {
     }
   }
 
+  // O Ancião fica no fim do percurso, junto ao poço. Pelo VS_0 ele pertence à
+  // Fase 2 (exploração); enquanto ela não existe, mora aqui — é ele quem
+  // planta a pergunta que o Bosque Esmeralda vai responder.
+  buildAnciao() {
+    this.anciao = new NPC(this, L.ANCIAO_TILE * TILE, this.groundY + GROUND_INSET, {
+      sprite: 'anciao',
+      nome: 'Ancião',
+      aoInteragir: () => this.conversar(),
+    });
+    this.anciao.setDepth(-4);
+    this.conversando = false;
+  }
+
+  conversar() {
+    if (this.conversando) return;
+    this.conversando = true;
+
+    // Overlay em paralelo: a cena de baixo pausa, mas continua visível.
+    this.scene.pause();
+    this.scene.launch('DialogueOverlay', {
+      id: 'anciao_vila',
+      from: this.scene.key,
+      onClose: () => {
+        this.conversando = false;
+        this.anciaoOuvido = true;
+      },
+    });
+  }
+
+  buildTutorial() {
+    // O primeiro vão é onde o pulo passa a ser necessário.
+    const [primeiroInicio, primeiraQtd] = L.GROUND_SEGMENTS[0];
+    this.tutorial = new TutorialHints(this, {
+      alvoX: L.TRAINING_DUMMY_TILE * TILE,
+      primeiroVaoX: (primeiroInicio + primeiraQtd) * TILE,
+    });
+  }
+
   buildExit() {
     const x = L.EXIT_TILE * TILE;
     // Saída visualmente distinta de um beco sem saída (03_GAMEPLAY_MACRO.md,
@@ -354,8 +396,14 @@ export default class Fase1Scene extends Phaser.Scene {
   update(time) {
     if (this.finished) return;
 
+    // Snapshot antes de qualquer consulta: Player, tutorial e NPC precisam
+    // enxergar o mesmo input no mesmo frame.
+    this.input$.beginFrame();
+
     this.player.update(this.input$, time);
     this.updateParallax();
+    this.tutorial.atualizar(this.player, this.input$);
+    this.anciao.atualizar(this.player, this.input$.interactPressed());
 
     // Libera o próximo acerto no alvo só quando o ataque termina — senão um
     // único golpe contaria vários frames de overlap.
@@ -381,11 +429,18 @@ export default class Fase1Scene extends Phaser.Scene {
   finishPhase() {
     if (this.finished) return;
     this.finished = true;
-    this.cameras.main.fadeOut(500);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.leave());
+    this.tutorial.destruir();
+
+    this.cameras.main.fadeOut(700);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      // Sair da vila dispara a Crônica de Partida — é a batida que fecha o
+      // tutorial com peso, em vez de uma transição seca de volta ao mapa.
+      this.scene.start('ChronicleScene', { id: 'cronica_vila_02' });
+    });
   }
 
   leave() {
+    this.tutorial?.destruir();
     this.scene.start('VilaMapaScene');
   }
 

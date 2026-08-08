@@ -42,21 +42,47 @@ export default class InputManager {
     );
   }
 
+  // Snapshot dos comandos de toque único, tirado UMA vez por frame.
+  //
+  // Phaser.Input.Keyboard.JustDown consome o estado da tecla na primeira
+  // chamada: quem perguntar depois recebe false. Com o Player, o tutorial e os
+  // NPCs consultando o mesmo input no mesmo frame, só o primeiro enxergava o
+  // comando. Ler tudo de uma vez no começo do frame resolve, e de quebra
+  // garante que todos vejam exatamente o mesmo estado.
+  beginFrame() {
+    this.frame = {
+      jump:
+        Phaser.Input.Keyboard.JustDown(this.keys.space) ||
+        Phaser.Input.Keyboard.JustDown(this.keys.up) ||
+        Phaser.Input.Keyboard.JustDown(this.keys.w) ||
+        this.touch.pressed.jump,
+      attack:
+        Phaser.Input.Keyboard.JustDown(this.keys.attack) ||
+        this.touch.pressed.attack,
+      interact:
+        Phaser.Input.Keyboard.JustDown(this.keys.interact) ||
+        this.touch.pressed.attack,
+    };
+  }
+
   jumpPressed() {
-    return (
-      Phaser.Input.Keyboard.JustDown(this.keys.space) ||
-      Phaser.Input.Keyboard.JustDown(this.keys.up) ||
-      Phaser.Input.Keyboard.JustDown(this.keys.w) ||
-      this.touch.pressed.jump
-    );
+    return this.frame?.jump ?? false;
   }
 
   attackPressed() {
-    return Phaser.Input.Keyboard.JustDown(this.keys.attack) || this.touch.pressed.attack;
+    return this.frame?.attack ?? false;
+  }
+
+  // Botão único e contextual (03_GAMEPLAY_MACRO.md, Seção 6): o que ele faz
+  // depende do que está à frente do jogador. No toque reaproveita o botão de
+  // ataque, para não encher a tela de um botão que quase nunca é usado.
+  interactPressed() {
+    return this.frame?.interact ?? false;
   }
 
   // Chamar no FIM do update da cena, senão um toque conta em vários frames.
   lateUpdate() {
     this.touch.clearPressed();
+    this.frame = null;
   }
 }

@@ -6,6 +6,8 @@ import MenuScene from './scenes/MenuScene.js';
 import ContinenteScene from './scenes/ContinenteScene.js';
 import VilaMapaScene from './scenes/VilaMapaScene.js';
 import Fase1Scene from './scenes/biomes/Vila_0/Fase1Scene.js';
+import ChronicleScene from './scenes/ChronicleScene.js';
+import DialogueOverlay from './scenes/DialogueOverlay.js';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -24,7 +26,15 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [PreloadScene, MenuScene, ContinenteScene, VilaMapaScene, Fase1Scene],
+  scene: [
+    PreloadScene,
+    MenuScene,
+    ChronicleScene,
+    ContinenteScene,
+    VilaMapaScene,
+    Fase1Scene,
+    DialogueOverlay,
+  ],
 });
 
 // Manager de trilha global: vive no jogo, não na cena, pra música atravessar

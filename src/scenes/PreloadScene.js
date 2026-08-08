@@ -34,6 +34,9 @@ export default class PreloadScene extends Phaser.Scene {
     );
 
     this.load.image('retrato_anciao', 'assets/npcs/retrato_anciao.png');
+    // Sprite de corpo inteiro do Ancião ainda não existe; o NPC cai num
+    // placeholder até ele chegar. Descomentar junto com o asset:
+    // this.load.image('anciao', 'assets/npcs/anciao.png');
 
     ['cronica_vila_01', 'cronica_vila_02'].forEach((k) =>
       this.load.image(k, `assets/cronicas/${k}.png`),
