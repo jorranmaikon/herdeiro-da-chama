@@ -403,7 +403,10 @@ export default class Fase1Scene extends Phaser.Scene {
     this.player.update(this.input$, time);
     this.updateParallax();
     this.tutorial.atualizar(this.player, this.input$);
-    this.anciao.atualizar(this.player, this.input$.interactPressed());
+    const pertoDoAnciao = this.anciao.atualizar(
+      this.player, this.input$.interactPressed(),
+    );
+    this.input$.setInteractAvailable(pertoDoAnciao);
 
     // Libera o próximo acerto no alvo só quando o ataque termina — senão um
     // único golpe contaria vários frames de overlap.

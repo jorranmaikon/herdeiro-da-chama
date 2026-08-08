@@ -61,7 +61,7 @@ export default class InputManager {
         this.touch.pressed.attack,
       interact:
         Phaser.Input.Keyboard.JustDown(this.keys.interact) ||
-        this.touch.pressed.attack,
+        this.touch.pressed.interact,
     };
   }
 
@@ -74,8 +74,8 @@ export default class InputManager {
   }
 
   // Botão único e contextual (03_GAMEPLAY_MACRO.md, Seção 6): o que ele faz
-  // depende do que está à frente do jogador. No toque reaproveita o botão de
-  // ataque, para não encher a tela de um botão que quase nunca é usado.
+  // depende do que está à frente do jogador. No toque tem botão próprio, que
+  // só aparece quando há algo ao alcance.
   interactPressed() {
     return this.frame?.interact ?? false;
   }
@@ -84,5 +84,10 @@ export default class InputManager {
   lateUpdate() {
     this.touch.clearPressed();
     this.frame = null;
+  }
+
+  /** A cena avisa quando há algo interagível por perto. */
+  setInteractAvailable(disponivel) {
+    this.touch.setInteractVisible(disponivel);
   }
 }

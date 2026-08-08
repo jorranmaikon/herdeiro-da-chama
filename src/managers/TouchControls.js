@@ -7,8 +7,8 @@ export default class TouchControls {
     this.scene = scene;
     this.enabled = scene.sys.game.device.input.touch;
 
-    this.state = { left: false, right: false, jump: false, attack: false };
-    this.pressed = { jump: false, attack: false };
+    this.state = { left: false, right: false, jump: false, attack: false, interact: false };
+    this.pressed = { jump: false, attack: false, interact: false };
 
     // Guarda qual dedo pressionou cada botão. Sem isso, soltar um dedo
     // liberava todos os botões e era impossível andar e pular junto.
@@ -23,6 +23,27 @@ export default class TouchControls {
     this.button(238, bottom, 54, '▶', 'right');
     this.button(GAME_WIDTH - 112, bottom, 62, '▲', 'jump');
     this.button(GAME_WIDTH - 244, bottom - 42, 54, '⚔', 'attack');
+
+    // Interagir tem botão próprio, e não compartilha o de ataque: atacar sem
+    // querer na frente de um NPC abria diálogo, e conversar exigia dar um
+    // golpe no interlocutor.
+    //
+    // Fica escondido por padrão e só aparece quando há algo ao alcance, para
+    // não ocupar a tela num botão que passa a fase inteira sem uso.
+    this.interactButton = this.button(GAME_WIDTH - 356, bottom - 62, 50, '☰', 'interact');
+    this.setInteractVisible(false);
+  }
+
+  /** Mostra ou esconde o botão de interagir. A cena decide quando. */
+  setInteractVisible(visivel) {
+    if (!this.interactButton) return;
+    this.interactButton.circle.setVisible(visivel);
+    this.interactButton.text.setVisible(visivel);
+    if (!visivel) {
+      this.state.interact = false;
+      this.pressed.interact = false;
+      delete this.owner.interact;
+    }
   }
 
   button(x, y, radius, label, action) {
@@ -64,10 +85,13 @@ export default class TouchControls {
     // Rede de segurança: dedo arrastado pra fora não pode travar o botão.
     this.scene.input.on('pointerup', release);
     this.scene.input.on('pointerupoutside', release);
+
+    return { circle, text };
   }
 
   clearPressed() {
     this.pressed.jump = false;
     this.pressed.attack = false;
+    this.pressed.interact = false;
   }
 }
