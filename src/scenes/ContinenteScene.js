@@ -5,16 +5,19 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
 // As 9 regiões aparecem desde o início; as não visitadas ficam como "?" —
 // reforça "o mundo é maior do que o jogador consegue explorar".
 // Ordem definitiva em 02_CONTINENTE.md.
+// Posições dos rótulos na arte do mapa, convertidas de 1536x1024 para o canvas.
+// A ordem segue a espiral do 02_CONTINENTE.md: da Vila, na borda, até o Vulcão,
+// no centro geográfico.
 const REGIOES = [
-  { id: 'vila', nome: 'Vila Inicial', x: 280, y: 548, liberada: true },
-  { id: 'bosque', nome: 'Bosque Esmeralda', x: 215, y: 368 },
-  { id: 'floresta', nome: 'Floresta Sombria', x: 240, y: 200 },
-  { id: 'montanhas', nome: 'Montanhas de Ferro', x: 437, y: 122 },
-  { id: 'picos', nome: 'Picos Congelados', x: 1058, y: 120 },
-  { id: 'reino', nome: 'Reino Esquecido', x: 1015, y: 320 },
-  { id: 'pantano', nome: 'Pântano Maldito', x: 1022, y: 556 },
-  { id: 'abismo', nome: 'O Abismo', x: 760, y: 448 },
-  { id: 'vulcao', nome: 'Vulcão da Origem', x: 630, y: 376 },
+  { id: 'vila', nome: 'Vila Inicial', x: 254, y: 594, liberada: true },
+  { id: 'bosque', nome: 'Bosque Esmeralda', x: 177, y: 413 },
+  { id: 'floresta', nome: 'Floresta Sombria', x: 229, y: 204 },
+  { id: 'montanhas', nome: 'Montanhas de Ferro', x: 414, y: 92 },
+  { id: 'picos', nome: 'Picos Congelados', x: 1029, y: 138 },
+  { id: 'reino', nome: 'Reino Esquecido', x: 1033, y: 379 },
+  { id: 'pantano', nome: 'Pântano Maldito', x: 1010, y: 605 },
+  { id: 'abismo', nome: 'O Abismo', x: 771, y: 443 },
+  { id: 'vulcao', nome: 'Vulcão da Origem', x: 606, y: 356 },
 ];
 
 export default class ContinenteScene extends Phaser.Scene {
@@ -60,16 +63,34 @@ export default class ContinenteScene extends Phaser.Scene {
   marcador(regiao) {
     const liberada = !!regiao.liberada;
 
-    this.add.circle(regiao.x, regiao.y, 17, 0x000000, 0.55).setDepth(9);
-    const ponto = this.add.circle(regiao.x, regiao.y, 9, liberada ? 0xffb84d : 0x6b6b6b).setDepth(10);
+    // A arte do mapa traz o nome de TODAS as regiões escrito. Isso contraria o
+    // 06_INTERFACE_UX.md (Seção 2.1): região não visitada mostra apenas a
+    // silhueta e um "?", sem revelar conteúdo. Por isso o rótulo das regiões
+    // bloqueadas é COBERTO por uma placa opaca com "?" — a silhueta do terreno
+    // continua visível, que é justamente o que a regra quer preservar.
+    if (!liberada) {
+      this.add
+        .rectangle(regiao.x, regiao.y, 172, 34, 0x1a1712, 0.94)
+        .setStrokeStyle(2, 0x4a3f30)
+        .setDepth(9);
+    }
+
+    // Região liberada: o marcador sobe para não cobrir o nome que a arte já
+    // desenha — escrever o nome de novo por cima ficava duplicado.
+    // Região bloqueada: o marcador some e sobra só o "?" sobre a placa opaca.
+    const my = liberada ? regiao.y - 40 : regiao.y;
+
+    let ponto = null;
+    if (liberada) {
+      this.add.circle(regiao.x, my, 17, 0x000000, 0.55).setDepth(9);
+      ponto = this.add.circle(regiao.x, my, 9, 0xffb84d).setDepth(10);
+    }
 
     const rotulo = this.add
-      .text(regiao.x, regiao.y - 32, liberada ? regiao.nome : '?', {
+      .text(regiao.x, my, liberada ? '' : '?', {
         fontFamily: 'monospace',
-        fontSize: liberada ? '18px' : '22px',
-        color: liberada ? '#ffe9b0' : '#9a9a9a',
-        backgroundColor: '#00000088',
-        padding: { x: 8, y: 4 },
+        fontSize: '22px',
+        color: '#9a9a9a',
       })
       .setOrigin(0.5)
       .setDepth(10);
@@ -85,7 +106,7 @@ export default class ContinenteScene extends Phaser.Scene {
       });
 
       this.add
-        .zone(regiao.x, regiao.y, 96, 96)
+        .zone(regiao.x, regiao.y - 20, 190, 90)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => this.entrar(regiao));
     }

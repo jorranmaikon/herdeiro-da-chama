@@ -3,6 +3,10 @@ import {
   GAME_WIDTH, GAME_HEIGHT, TILE, GROUND_INSET, SKY_COLOR,
   GRAVITY, PLAYER_HEIGHT,
 } from '../../../config/gameConfig.js';
+
+// A grama da plataforma é mais rasa que a do chão, então o topo da colisão
+// desce menos do que o GROUND_INSET usado nos tiles de terreno.
+const PLATFORM_INSET = 6;
 import Player from '../../../entities/Player.js';
 import InputManager from '../../../managers/InputManager.js';
 import * as L from './fase1Layout.js';
@@ -47,13 +51,20 @@ export default class Fase1Scene extends Phaser.Scene {
   buildParallax() {
     this.cameras.main.setBackgroundColor(SKY_COLOR);
 
-    // As colinas terminam logo abaixo da linha do chao e as arvores bem mais
-    // fundo: assim a treeline nao cobre os montes, e a base das arvores desce
-    // o suficiente para tapar o que se ve por dentro de um vao.
+    // Alturas espelhadas em tools/preview_fase.py — a preview só serve para
+    // validar se mostrar exatamente o mesmo que o jogo.
+    //
+    // A treeline termina na linha do chão (a saia sólida continua abaixo,
+    // tapando o que se veria por dentro de um vão); as colinas assomam ACIMA
+    // dela, senão somem, e param bem antes do topo, senão cobrem o céu.
+    const ARVORES_SKIRT = 280;
+    const COLINAS_TOP = 300;
+    const alturaColinas = this.textures.get('bg_colinas').getSourceImage().height;
+
     const layers = [
       { key: 'bg_ceu', scroll: 0, bottom: GAME_HEIGHT },
-      { key: 'bg_colinas', scroll: 0.15, bottom: this.groundY + TILE * 0.5 },
-      { key: 'bg_arvores', scroll: 0.35, bottom: this.groundY + TILE * 2.5 },
+      { key: 'bg_colinas', scroll: 0.15, bottom: COLINAS_TOP + alturaColinas },
+      { key: 'bg_arvores', scroll: 0.35, bottom: this.groundY + ARVORES_SKIRT },
     ];
 
     this.parallax = layers.map(({ key, scroll, bottom }, i) => {
@@ -132,18 +143,32 @@ export default class Fase1Scene extends Phaser.Scene {
     this.addSolid(start * TILE, this.groundY + GROUND_INSET, count * TILE, TILE * 2);
   }
 
+  // A plataforma é montada com três peças: ponta esquerda, meio repetível e
+  // ponta direita. As pontas são arredondadas — é o que a faz ler como
+  // plataforma e não como um naco de chão — e por isso não podem repetir.
   addPlatform(start, count, heightTiles) {
     const y = this.groundY - heightTiles * TILE;
+    const x0 = start * TILE;
     const width = count * TILE;
-    const src = this.textures.get('plataforma').getSourceImage();
 
-    // A arte da plataforma tem largura própria; repete até cobrir o vão.
-    this.add
-      .tileSprite(start * TILE, y, width, src.height, 'plataforma')
-      .setOrigin(0, 0)
-      .setDepth(-9);
+    const esq = this.textures.get('plataforma_esq').getSourceImage();
+    const meio = this.textures.get('plataforma_meio').getSourceImage();
+    const dir = this.textures.get('plataforma_dir').getSourceImage();
 
-    this.addSolid(start * TILE, y + GROUND_INSET, width, TILE);
+    this.add.image(x0, y, 'plataforma_esq').setOrigin(0, 0).setDepth(-9);
+    this.add.image(x0 + width, y, 'plataforma_dir').setOrigin(1, 0).setDepth(-9);
+
+    const meioX = x0 + esq.width;
+    const meioW = width - esq.width - dir.width;
+    if (meioW > 0) {
+      this.add
+        .tileSprite(meioX, y, meioW, meio.height, 'plataforma_meio')
+        .setOrigin(0, 0)
+        .setDepth(-9);
+    }
+
+    // A colisão cobre a largura inteira, incluindo as pontas.
+    this.addSolid(x0, y + PLATFORM_INSET, width, TILE);
   }
 
   /** Corpo estático invisível. A arte é desenhada à parte.

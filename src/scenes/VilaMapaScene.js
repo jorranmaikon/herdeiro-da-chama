@@ -4,16 +4,17 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
 // Mapa do Bioma — Vila Inicial (06_INTERFACE_UX.md, Seção 2.2).
 // Progressão LINEAR: as fases se encadeiam numa trilha, sem mapa aberto.
 //
-// A arte é um recorte ampliado do Mapa do Continente na região da Vila.
-// TODO: substituir por arte dedicada do bioma quando existir.
-const ZOOM = 4.2;
-const FOCO = { x: 280, y: 548 }; // posição da Vila no mapa do continente
-
+// A arte é dedicada ao bioma e já traz os dois marcadores de fase desenhados —
+// as posições abaixo são os centros desses marcadores, convertidos da resolução
+// da arte (1536x1024) para o canvas do jogo. Antes esta cena mostrava um
+// recorte ampliado do Mapa do Continente, o que era uma solução provisória.
+//
+// São DUAS fases, e não as quatro do padrão de bioma: a Região 0 é tutorial sem
+// combate, e 4 fases não se justificariam (exceção registrada no
+// VS_0_VILA_INICIAL.md, Seção 3).
 const FASES = [
-  { id: 1, nome: 'Despertar', x: -150, y: 40, cena: 'Fase1Scene', liberada: true },
-  { id: 2, nome: 'A Forja', x: -40, y: -30, liberada: false },
-  { id: 3, nome: 'A Trilha', x: 80, y: 20, liberada: false },
-  { id: 4, nome: 'Arredores', x: 190, y: -40, liberada: false },
+  { id: 1, nome: 'Despertar', x: 604, y: 232, cena: 'Fase1Scene', liberada: true },
+  { id: 2, nome: 'Arredores', x: 638, y: 501, liberada: false },
 ];
 
 export default class VilaMapaScene extends Phaser.Scene {
@@ -24,15 +25,10 @@ export default class VilaMapaScene extends Phaser.Scene {
   create() {
     this.entrando = false;
 
-    // Recorte da região da Vila, ampliado — continua de onde o zoom do
-    // continente parou, sem corte visual entre as duas telas.
-    const mapa = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'mapa_continente');
-    mapa.setScale(ZOOM);
-    mapa.x = GAME_WIDTH / 2 - (FOCO.x - GAME_WIDTH / 2) * ZOOM;
-    mapa.y = GAME_HEIGHT / 2 - (FOCO.y - GAME_HEIGHT / 2) * ZOOM;
-
-    // Escurece um pouco pra trilha e rótulos ficarem legíveis sobre a arte.
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.35).setOrigin(0);
+    this.add
+      .image(0, 0, 'mapa_vila')
+      .setOrigin(0)
+      .setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
     this.game.audio.play(this, 'mus_mapa');
     this.game.audio.createToggle(this);
@@ -63,32 +59,27 @@ export default class VilaMapaScene extends Phaser.Scene {
   }
 
   desenharTrilha() {
-    const cx = GAME_WIDTH / 2;
-    const cy = GAME_HEIGHT / 2 + 40;
-
-    // Linha ligando as fases, reforçando a progressão linear.
+    // Linha ligando as fases, reforçando a progressão linear. Fica sob os
+    // marcadores da arte, não por cima deles.
     const linha = this.add.graphics().setDepth(5);
-    linha.lineStyle(4, 0x6b5334, 0.9);
+    linha.lineStyle(4, 0xffe9b0, 0.35);
     linha.beginPath();
     FASES.forEach((f, i) => {
-      const x = cx + f.x;
-      const y = cy + f.y;
-      if (i === 0) linha.moveTo(x, y);
-      else linha.lineTo(x, y);
+      if (i === 0) linha.moveTo(f.x, f.y);
+      else linha.lineTo(f.x, f.y);
     });
     linha.strokePath();
 
     FASES.forEach((fase) => {
-      const x = cx + fase.x;
-      const y = cy + fase.y;
+      const { x, y } = fase;
 
-      this.add.circle(x, y, 22, 0x000000, 0.6).setDepth(9);
+      // A arte já desenha o marcador; aqui entra só o realce de estado.
       const ponto = this.add
-        .circle(x, y, 13, fase.liberada ? 0xffb84d : 0x5a5a5a)
+        .circle(x, y, 16, fase.liberada ? 0xffb84d : 0x4a4a4a, fase.liberada ? 0.55 : 0.7)
         .setDepth(10);
 
       this.add
-        .text(x, y - 40, fase.liberada ? `${fase.id}. ${fase.nome}` : '?', {
+        .text(x, y - 44, fase.liberada ? `${fase.id}. ${fase.nome}` : '?', {
           fontFamily: 'monospace',
           fontSize: fase.liberada ? '17px' : '20px',
           color: fase.liberada ? '#ffe9b0' : '#9a9a9a',
@@ -102,8 +93,9 @@ export default class VilaMapaScene extends Phaser.Scene {
 
       this.tweens.add({
         targets: ponto,
-        scale: 1.4,
-        duration: 750,
+        scale: 1.45,
+        alpha: 0.2,
+        duration: 900,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',

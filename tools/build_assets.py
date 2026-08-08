@@ -180,7 +180,7 @@ SRC = {
     "casa_taipa":     "40e1e4be0773400a846e3469ada11c48c7a6ddae.png",
     "casa_madeira":   "c30a7e92e3fc805f5eb311ced843bc3b40a90301.png",
     "terreno":        "17c8393681e97a78b05cdab69848874b4beaf919.png",
-    "plataforma":     "0a71cda675f2520336a1f8526375b4f3db24efb2.png",
+    "plataforma":     "e0685321fd0c0ea544e16cf35b461ed7eecbe86b.png",
     "cerca":          "314767a1fe66d1858716ce276dfeee1be0fa8b63.png",
     "poco":           "8a3b1400da2a915418e10ed5b2f7bfc77bb18ba4.png",
     "barril_caixa":   "f1b3dca4614667a5f8f71de2bb6446d3030c0793.png",
@@ -261,6 +261,16 @@ def _build_pair(src_key, names, ref, ref_height):
 # repetição fica óbvia; alternando três, o chão parece contínuo.
 TILE_WINDOWS = [120, 420, 720]
 
+# Plataforma suspensa. A arte tem as PONTAS ARREDONDADAS, que é o que a faz
+# ler como plataforma e não como um pedaço de chão arrancado — mas também é o
+# que a impede de simplesmente repetir: a espessura varia nas bordas.
+#
+# Por isso ela é fatiada em três peças (ponta esquerda, meio repetível, ponta
+# direita) e a cena monta qualquer largura com elas. Só o MEIO repete.
+PLATFORM_HEIGHT = 72     # total, já contando as raízes penduradas
+PLATFORM_CAP = 41        # largura da ponta arredondada, medida na arte
+PLATFORM_MID_SRC = 400   # largura da fatia do meio, na resolução da arte
+
 
 def build_tiles():
     rgb = np.array(Image.open(UPLOADS / SRC["terreno"]).convert("RGB"))
@@ -292,14 +302,40 @@ def build_tiles():
             np.dstack([fill, np.full(fill.shape[:2], 255, np.uint8)]), "RGBA"
         ).save(OUT / "tiles" / f"tile_fill_{i}.png")
 
-    # Plataforma suspensa: base acabada, repete na horizontal.
+    _build_platform()
+
+
+def _build_platform():
+    """Fatia a plataforma em ponta esquerda / meio repetível / ponta direita.
+
+    As três peças são reduzidas pelo MESMO fator, senão as pontas não encaixam
+    na altura do meio.
+    """
     rgb = np.array(Image.open(UPLOADS / SRC["plataforma"]).convert("RGB"))
     alpha = alpha_from_white(rgb, enclosed_limit=8)
     ys, xs = np.where(alpha > 0)
     rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-    to_height(Image.fromarray(rgba, "RGBA"), TILE * 2).save(
-        OUT / "props" / "plataforma.png"
-    )
+
+    escala = PLATFORM_HEIGHT / rgba.shape[0]
+    cap = PLATFORM_CAP
+
+    # O meio sai do centro da arte, longe das pontas. A fatia é LARGA de
+    # propósito: uma fatia estreita cabe várias vezes numa plataforma curta e
+    # as pedrinhas viram um padrão óbvio. Com 400px de origem, uma plataforma
+    # de 2 tiles é coberta quase sem repetir.
+    meio_x = (rgba.shape[1] - PLATFORM_MID_SRC) // 2
+    meio = seam_fix(rgba[:, meio_x:meio_x + PLATFORM_MID_SRC], fade=8)
+
+    partes = {
+        "plataforma_esq": rgba[:, :cap],
+        "plataforma_meio": meio,
+        "plataforma_dir": rgba[:, -cap:],
+    }
+    for nome, parte in partes.items():
+        w = max(1, round(parte.shape[1] * escala))
+        Image.fromarray(parte, "RGBA").resize(
+            (w, PLATFORM_HEIGHT), Image.LANCZOS
+        ).save(OUT / "props" / f"{nome}.png")
 
     print(f"  {len(TILE_WINDOWS) * 2} tiles de {TILE}x{TILE}px + plataforma")
 
@@ -314,28 +350,55 @@ PARALLAX_SRC = {
 }
 
 # Altura do horizonte dentro da imagem do céu, em px de um canvas de 720.
-HORIZON_Y = 560
+HORIZON_Y = 400
 
 # Quantos px de cor sólida acrescentar abaixo de cada camada. Sem isso, ao
 # olhar por dentro de um vão do chão, via-se o céu por baixo das árvores e elas
 # pareciam flutuar.
-PARALLAX_SKIRT = {"bg_colinas": 200, "bg_arvores": 260}
+PARALLAX_SKIRT = {"bg_colinas": 200, "bg_arvores": 280}
 
 
-def _clone_over_stamp(rgb, cy=270, cx=955, half=42, src_dx=-260):
-    """Cobre o carimbo em estrela que o gerador aplica sempre no mesmo ponto.
-    Clonagem de um bloco vizinho — inpainting por mediana borrava a copa."""
+def _erase_stamp(rgb, modo, cy=270, cx=955, half=44):
+    """Apaga o carimbo em estrela que o gerador aplica sempre no mesmo ponto.
+
+    O método depende do que há embaixo, e nenhum dos dois serve para os dois
+    casos:
+
+    "interp" — interpola cada linha entre as colunas vizinhas. Some no céu e
+    nas colinas, que são bandas horizontais suaves. Numa treeline, vira um
+    borrão liso.
+
+    "clone" — copia um bloco de outro trecho da mesma faixa. Funciona na
+    treeline, que se repete; nas colinas deixava um retângulo visível, porque
+    a forma dos montes não se repete.
+    """
     out = rgb.copy()
-    out[cy - half:cy + half, cx - half:cx + half] = \
-        rgb[cy - half:cy + half, cx - half + src_dx:cx + half + src_dx]
+    y0, y1 = cy - half, cy + half
+    x0, x1 = cx - half, cx + half
+
+    if modo == "clone":
+        out[y0:y1, x0:x1] = rgb[y0:y1, x0 - 180:x1 - 180]
+        return out
+
+    esq = rgb[y0:y1, x0 - 1].astype(float)
+    dir_ = rgb[y0:y1, min(x1, rgb.shape[1] - 1)].astype(float)
+    largura = x1 - x0
+    for i in range(largura):
+        t = i / max(1, largura - 1)
+        out[y0:y1, x0 + i] = (esq * (1 - t) + dir_ * t).astype(np.uint8)
     return out
+
+
+# Qual método usar em cada camada.
+STAMP_MODE = {"bg_ceu": "interp", "bg_colinas": "interp", "bg_arvores": "clone"}
 
 
 def build_parallax():
     # Céu: opaco e do tamanho do canvas. Estende com a cor da própria banda
     # de topo e de base, em vez de ampliar a arte.
-    rgb = _clone_over_stamp(
-        np.array(Image.open(UPLOADS / PARALLAX_SRC["bg_ceu"]).convert("RGB"))
+    rgb = _erase_stamp(
+        np.array(Image.open(UPLOADS / PARALLAX_SRC["bg_ceu"]).convert("RGB")),
+        STAMP_MODE["bg_ceu"],
     )
     top = np.median(rgb[0:3], axis=(0, 1)).astype(np.uint8)
     bot = np.median(rgb[-3:], axis=(0, 1)).astype(np.uint8)
@@ -345,8 +408,9 @@ def build_parallax():
     Image.fromarray(out).convert("RGBA").save(OUT / "bg" / "bg_ceu.png")
 
     for name in ["bg_colinas", "bg_arvores"]:
-        rgb = _clone_over_stamp(
-            np.array(Image.open(UPLOADS / PARALLAX_SRC[name]).convert("RGB"))
+        rgb = _erase_stamp(
+            np.array(Image.open(UPLOADS / PARALLAX_SRC[name]).convert("RGB")),
+            STAMP_MODE[name],
         )
         # enclosed_limit baixo: nas camadas de cenario todo vao branco cercado
         # pelo desenho e buraco de fundo (entre copas), nao detalhe a preservar.
