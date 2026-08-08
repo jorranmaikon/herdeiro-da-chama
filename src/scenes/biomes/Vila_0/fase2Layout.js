@@ -26,13 +26,15 @@ export const GROUND_SEGMENTS = [
   [52, 26],  // vão de 2 — saída, com o desvio bloqueado no caminho
 ];
 
-// Só duas plataformas, e ambas com função.
-// A de [63, 4, 1] NÃO é para subir: fica a 1 tile do chão e forma uma fresta
+// Três plataformas, todas com função.
+//
+// A de [68, 4, 1] NÃO é para subir: fica a 1 tile do chão e forma uma fresta
 // baixa. O jogador tem 2 tiles de altura e não passa por baixo dela em pé —
 // é o desvio bloqueado da Seção 8 do VS, que se resolve com o Rolamento
 // (Brasa 1, obtida no Bosque Esmeralda).
 export const PLATFORMS = [
   [16, 3, 1],
+  [30, 2, 2],   // guarda o item de cura — exige pulo, mas é alcançável agora
   [68, 4, 1],
 ];
 
@@ -41,10 +43,22 @@ export const CHECKPOINTS = [2, 53];
 export const SPAWN_TILE = 2;
 export const EXIT_TILE = 75;
 
-// Item de cura, dentro da fresta. Fica VISÍVEL desde a primeira passagem e
-// inalcançável até o jogador ter o Rolamento — planta a curiosidade que o
-// 03_GAMEPLAY_MACRO.md, Seção 6, pede.
-export const ITEM_CURA_TILE = 70.2;
+// Item de cura, em cima da plataforma alta da praça.
+//
+// ELE NÃO FICA NO DESVIO BLOQUEADO, e isso é deliberado: a Fase 2 é a última
+// da Vila, e não existe exploração para trás entre biomas
+// (06_INTERFACE_UX.md, Seção 2.2). Um item atrás de um obstáculo que só o
+// Rolamento abre ficaria inalcançável para sempre, exceto em replay — ou
+// seja, um item morto. Aqui ele recompensa exploração de verdade: exige
+// desviar do caminho e pular, mas é obtível na primeira passagem.
+export const ITEM_CURA_TILE = 31;
+export const ITEM_CURA_ALTURA = 2;   // em tiles acima do chão
+
+// O que fica dentro da fresta é uma PISTA, não um item: um brilho fraco no
+// escuro, visível e inalcançável, que existe só para o jogador registrar "dá
+// pra passar aqui, mas não agora". Vira colecionável de verdade quando o jogo
+// tiver um, e aí o replay da fase passa a valer a pena.
+export const DESVIO_BLOQUEADO_TILE = 70.2;
 
 // O Ancião fica na praça, junto ao poço. Esta é a fase à qual ele pertence
 // pelo VS_0_VILA_INICIAL.md.

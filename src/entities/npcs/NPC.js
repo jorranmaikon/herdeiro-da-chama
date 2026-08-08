@@ -62,8 +62,28 @@ export default class NPC extends Phaser.GameObjects.Container {
     return this.corpo.displayHeight || this.corpo.height || 104;
   }
 
+  /** Vira o NPC para o lado onde o jogador está.
+   *
+   *  Só troca quando o jogador realmente cruza para o outro lado, com uma
+   *  pequena margem morta: sem ela, alguém parado exatamente à frente do NPC
+   *  o faria oscilar entre os dois lados a cada frame.
+   */
+  olharPara(player) {
+    const dx = player.x - this.x;
+    if (Math.abs(dx) < 12) return;
+
+    const paraDireita = dx > 0;
+    if (paraDireita === this.olhandoDireita) return;
+
+    this.olhandoDireita = paraDireita;
+    // A arte de origem olha para a frente; espelhar dá a leitura de virar-se.
+    this.corpo.setFlipX?.(paraDireita);
+  }
+
   /** Chamado pela cena a cada frame. Devolve true se o jogador está no raio. */
   atualizar(player, interagiu) {
+    this.olharPara(player);
+
     const perto = Math.abs(player.x - this.x) < RAIO_INTERACAO
       && Math.abs(player.y - this.y) < TILE * 3;
 

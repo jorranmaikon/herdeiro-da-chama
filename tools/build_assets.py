@@ -293,7 +293,7 @@ SRC = {
     "retrato_anciao": "8d346ed9c927c96f6dbd96d083736bc81b33c651.png",
     "icones":         "9142f4b57d0622b390d94b9b5f12d33fb1762fa3.png",
     "cronica_01":     "059e23fb34a5471bf16ef2698cb9c76172cf6f4d.png",
-    "cronica_02":     "279bf8ab41249c814bfaeaa346011de471da56a4.png",
+    "cronica_02":     "IMG_7586.PNG",
     # Fundo magenta (#FF00FF), não branco — ver alpha_from_chroma.
     "anciao_sprite":  "7aa3611c5f9df8a0feccb532c3d5280207aac292.png",
     "anciao_retrato": "58f967b70814ed53d3f973247fefd899687a4d00.png",
@@ -509,6 +509,34 @@ def _erase_stamp(rgb, modo, cy=270, cx=955, half=44):
         out[y0:y1, x0:x1] = rgb[y0:y1, x0 - 180:x1 - 180]
         return out
 
+    if modo == "mancha":
+        # Substitui SÓ os pixels do carimbo pela cor do cenário em volta.
+        #
+        # As duas alternativas falham aqui: clonar um bloco de outro lugar
+        # deixa um retângulo mais chamativo que a marca, e difundir a região
+        # inteira espalha a claridade do próprio carimbo. Como a marca é sempre
+        # bem mais clara que o fundo, dá para isolá-la e preencher cada pixel
+        # com a mediana dos vizinhos escuros.
+        area = out[y0:y1, x0:x1]
+        lum = area.mean(axis=2)
+        limiar = np.percentile(lum, 68)
+        marca = ndimage.binary_dilation(lum > limiar, iterations=3)
+        if not marca.any():
+            return out
+
+        limpo = area.copy()
+        ys_m, xs_m = np.where(marca)
+        h_a, w_a = marca.shape
+        for yy, xx in zip(ys_m, xs_m):
+            a0, a1 = max(0, yy - 14), min(h_a, yy + 15)
+            b0, b1 = max(0, xx - 14), min(w_a, xx + 15)
+            viz = area[a0:a1, b0:b1]
+            ok = ~marca[a0:a1, b0:b1]
+            if ok.any():
+                limpo[yy, xx] = np.median(viz[ok], axis=0).astype(np.uint8)
+        out[y0:y1, x0:x1] = limpo
+        return out
+
     esq = rgb[y0:y1, x0 - 1].astype(float)
     dir_ = rgb[y0:y1, min(x1, rgb.shape[1] - 1)].astype(float)
     largura = x1 - x0
@@ -614,11 +642,15 @@ def build_ui_and_narrative():
          anchor_bottom=True).save(OUT / "npcs" / "retrato_anciao.png")
 
     # Crônicas: ilustração de fundo inteiro, sem recorte nem transparência.
+    # Só o carimbo do gerador é apagado — nas Crônicas ele cai sobre o desenho,
+    # então não some junto com o fundo.
     for key, name in [("cronica_01", "cronica_vila_01"),
                       ("cronica_02", "cronica_vila_02")]:
-        Image.open(UPLOADS / SRC[key]).convert("RGB").save(
-            OUT / "cronicas" / f"{name}.png"
-        )
+        rgb = np.array(Image.open(UPLOADS / SRC[key]).convert("RGB"))
+        h, w, _ = rgb.shape
+        rgb = _erase_stamp(rgb, "mancha",
+                           cy=int(h * 0.835), cx=int(w * 0.915), half=26)
+        Image.fromarray(rgb).save(OUT / "cronicas" / f"{name}.png")
 
     print(f"  {len(ICON_NAMES)} ícones, 1 retrato, 2 Crônicas")
 

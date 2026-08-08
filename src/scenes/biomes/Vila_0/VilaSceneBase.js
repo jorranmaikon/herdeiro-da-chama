@@ -10,6 +10,16 @@ import InputManager from '../../../managers/InputManager.js';
 // desce menos do que o GROUND_INSET usado nos tiles de terreno.
 const PLATFORM_INSET = 6;
 
+// Espessura do corpo de colisão da plataforma. Fina de propósito: só o topo é
+// sólido, o resto da altura fica livre para passar por baixo.
+//
+// O valor não é arbitrário. Numa plataforma a 1 tile do chão, ele define a
+// altura do vão por baixo: 14px de colisão deixam 44px livres. É a folga que o
+// Rolamento (Brasa 1) precisará caber quando for implementado — o corpo do
+// jogador tem 104px em pé e terá de encolher para 44px ou menos durante a
+// esquiva. Mexer aqui exige rever isso.
+const PLATFORM_SOLID_H = 14;
+
 // Base comum das fases da Vila Inicial.
 //
 // Reúne o que toda fase do bioma precisa montar igual: parallax, terreno,
@@ -207,8 +217,12 @@ export default class VilaSceneBase extends Phaser.Scene {
         .setDepth(-9);
     }
 
-    // A colisão cobre a largura inteira, incluindo as pontas.
-    this.addSolid(x0, y + PLATFORM_INSET, width, TILE);
+    // A colisão é uma FAIXA FINA no topo, não um bloco da altura do tile.
+    // Com 64px de altura, uma plataforma a 1 tile do chão fechava a passagem
+    // por baixo: o corpo de colisão descia 6px abaixo do próprio chão e virava
+    // parede. Além do bug, plataforma suspensa em jogo de plataforma existe
+    // para ser atravessada por baixo.
+    this.addSolid(x0, y + PLATFORM_INSET, width, PLATFORM_SOLID_H);
   }
 
   addSolid(x, y, w, h) {
