@@ -12,9 +12,12 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
 // São DUAS fases, e não as quatro do padrão de bioma: a Região 0 é tutorial sem
 // combate, e 4 fases não se justificariam (exceção registrada no
 // VS_0_VILA_INICIAL.md, Seção 3).
+// A Fase 1 é o marcador de BAIXO, junto ao portão de entrada da vila; a Fase 2
+// é o de cima, onde a trilha segue para o Bosque Esmeralda. A ordem acompanha
+// o sentido da jornada no mapa, de fora para dentro do continente.
 const FASES = [
-  { id: 1, nome: 'Despertar', x: 604, y: 232, cena: 'Fase1Scene', liberada: true },
-  { id: 2, nome: 'Arredores', x: 638, y: 501, liberada: false },
+  { id: 1, nome: 'Despertar', x: 638, y: 501, cena: 'Fase1Scene', liberada: true },
+  { id: 2, nome: 'Arredores', x: 604, y: 232, liberada: false },
 ];
 
 export default class VilaMapaScene extends Phaser.Scene {

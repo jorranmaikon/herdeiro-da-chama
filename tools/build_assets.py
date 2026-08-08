@@ -64,7 +64,32 @@ def alpha_from_white(rgb, thresh=40, enclosed_limit=None, defringe=True):
     return np.where(bg, 0, 255).astype(np.uint8)
 
 
-def clean(path, enclosed_limit=200, drop_pale_shadow=False):
+def despeckle_white(rgba, thresh=190):
+    """Apaga pixels quase-brancos SOLTOS no meio de uma arte opaca.
+
+    São vãos minúsculos entre folhas que escapam do recorte de fundo (pequenos
+    demais para o enclosed_limit) e aparecem como pontinhos brancos sobre a
+    copa. Cada um recebe a cor mediana da vizinhança.
+    """
+    rgb = rgba[:, :, :3].astype(int)
+    solto = (rgb.min(axis=2) > thresh) & (rgba[:, :, 3] > 0)
+    if not solto.any():
+        return rgba
+
+    out = rgba.copy()
+    ys, xs = np.where(solto)
+    h, w = solto.shape
+    for y, x in zip(ys, xs):
+        y0, y1 = max(0, y - 3), min(h, y + 4)
+        x0, x1 = max(0, x - 3), min(w, x + 4)
+        viz = rgba[y0:y1, x0:x1]
+        bom = (viz[:, :, 3] > 0) & (viz[:, :, :3].astype(int).min(axis=2) <= thresh)
+        if bom.any():
+            out[y, x, :3] = np.median(viz[:, :, :3][bom], axis=0).astype(np.uint8)
+    return out
+
+
+def clean(path, enclosed_limit=200, drop_pale_shadow=False, despeckle=True):
     """Remove o fundo branco de uma arte solta e recorta ao conteúdo.
 
     drop_pale_shadow: alguns geradores desenham uma elipse de sombra BEGE sob o
@@ -86,7 +111,41 @@ def clean(path, enclosed_limit=200, drop_pale_shadow=False):
 
     ys, xs = np.where(alpha > 0)
     rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-    return Image.fromarray(rgba, "RGBA")
+    if despeckle:
+        rgba = despeckle_white(rgba)
+    return Image.fromarray(bleed_alpha(rgba), "RGBA")
+
+
+def bleed_alpha(rgba, passes=4):
+    """Espalha a cor dos pixels opacos para dentro da área transparente.
+
+    Um pixel transparente continua guardando um RGB — no nosso caso, branco.
+    Ao reduzir a imagem, o filtro mistura esse branco com a cor da borda e
+    recria a franja clara que o recorte tinha acabado de tirar. Preenchendo a
+    vizinhança transparente com a cor do desenho, a interpolação passa a puxar
+    a cor certa. O alfa não muda: o resultado continua recortado igual.
+    """
+    rgb = rgba[:, :, :3].astype(np.float32)
+    solido = rgba[:, :, 3] > 0
+
+    for _ in range(passes):
+        if solido.all():
+            break
+        soma = np.zeros_like(rgb)
+        cont = np.zeros(solido.shape, np.float32)
+        for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            viz_rgb = np.roll(np.roll(rgb, dy, 0), dx, 1)
+            viz_ok = np.roll(np.roll(solido, dy, 0), dx, 1)
+            soma += viz_rgb * viz_ok[:, :, None]
+            cont += viz_ok
+
+        alvo = (~solido) & (cont > 0)
+        rgb[alvo] = (soma[alvo] / cont[alvo][:, None])
+        solido = solido | alvo
+
+    out = rgba.copy()
+    out[:, :, :3] = rgb.astype(np.uint8)
+    return out
 
 
 def to_height(im, h):
@@ -94,13 +153,18 @@ def to_height(im, h):
 
     Levanta erro em caso de ampliação — a regra de ouro é validada aqui, não
     confiada à disciplina de quem chama.
+
+    A limpeza de pixels claros roda DEPOIS da redução, e não só antes: o
+    LANCZOS tem overshoot nas bordas de alto contraste e devolve pixels mais
+    claros que qualquer um dos originais. Limpar só antes deixava franja.
     """
     if h > im.height:
         raise ValueError(
             f"AMPLIACAO PROIBIDA ({im.height}px -> {h}px). "
             "Gere a arte de origem maior em vez de ampliar aqui."
         )
-    return im.resize((max(1, round(im.width * h / im.height)), h), Image.LANCZOS)
+    menor = im.resize((max(1, round(im.width * h / im.height)), h), Image.LANCZOS)
+    return Image.fromarray(despeckle_white(np.array(menor.convert("RGBA"))), "RGBA")
 
 
 def col_groups(a, min_gap=20):
@@ -129,31 +193,6 @@ def crop_group(a, x0, x1):
     sub = a[:, x0:x1 + 1]
     ys, xs = np.where(sub[:, :, 3] > 0)
     return Image.fromarray(sub[ys.min():ys.max() + 1, xs.min():xs.max() + 1], "RGBA")
-
-
-def despeckle_white(rgba, thresh=200):
-    """Apaga pixels quase-brancos SOLTOS no meio de uma arte opaca.
-
-    São vãos minúsculos entre folhas que escapam do recorte de fundo (pequenos
-    demais para o enclosed_limit) e aparecem como pontinhos brancos sobre a
-    copa. Cada um recebe a cor mediana da vizinhança.
-    """
-    rgb = rgba[:, :, :3].astype(int)
-    solto = (rgb.min(axis=2) > thresh) & (rgba[:, :, 3] > 0)
-    if not solto.any():
-        return rgba
-
-    out = rgba.copy()
-    ys, xs = np.where(solto)
-    h, w = solto.shape
-    for y, x in zip(ys, xs):
-        y0, y1 = max(0, y - 3), min(h, y + 4)
-        x0, x1 = max(0, x - 3), min(w, x + 4)
-        viz = rgba[y0:y1, x0:x1]
-        bom = (viz[:, :, 3] > 0) & (viz[:, :, :3].astype(int).min(axis=2) <= thresh)
-        if bom.any():
-            out[y, x, :3] = np.median(viz[:, :, :3][bom], axis=0).astype(np.uint8)
-    return out
 
 
 def seam_fix(a, fade=10):
@@ -206,6 +245,11 @@ SIMPLE_PROPS = {
     "arbusto": 64,        # 1 tile
 }
 MOINHO_HEIGHT = 384       # 6 tiles — marco visual
+
+# Em prop de cenário, todo vão branco cercado pelo desenho é buraco de fundo
+# (entre folhas, entre tábuas) e não detalhe a preservar. Um limite alto
+# deixava pontinhos brancos espalhados pela copa da árvore e pelo moinho.
+PROP_ENCLOSED = 10
 CERCA_HEIGHT = 96
 
 
@@ -216,12 +260,13 @@ def build_props():
     # arbusto e poço vieram com a elipse de sombra bege do gerador
     PALE_SHADOW = {"arbusto", "poco"}
     for name, height in SIMPLE_PROPS.items():
-        im = clean(UPLOADS / SRC[name], drop_pale_shadow=name in PALE_SHADOW)
+        im = clean(UPLOADS / SRC[name], enclosed_limit=PROP_ENCLOSED,
+                   drop_pale_shadow=name in PALE_SHADOW)
         to_height(im, height).save(OUT / "props" / f"{name}.png")
 
     # Moinho: a folha traz 3 variações; a 1ª é a canônica (única com porta na
     # base de pedra e telhado cônico escuro, conforme aprovado).
-    a = np.array(clean(UPLOADS / SRC["moinho"]))
+    a = np.array(clean(UPLOADS / SRC["moinho"], enclosed_limit=PROP_ENCLOSED))
     x0, x1 = col_groups(a)[0]
     to_height(crop_group(a, x0, x1), MOINHO_HEIGHT).save(OUT / "props" / "moinho.png")
 
@@ -231,7 +276,8 @@ def build_props():
     rgb = np.array(Image.open(UPLOADS / SRC["cerca"]).convert("RGB"))
     alpha = alpha_from_white(rgb, enclosed_limit=None)
     ys, _ = np.where(alpha > 0)
-    rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, :]
+    rgba = bleed_alpha(despeckle_white(
+        np.dstack([rgb, alpha])[ys.min():ys.max() + 1, :]))
     to_height(Image.fromarray(rgba, "RGBA"), CERCA_HEIGHT).save(
         OUT / "props" / "cerca.png"
     )
@@ -293,7 +339,9 @@ def build_tiles():
         # acima das folhas, visivel contra o ceu.
         white = (topo.min(axis=2) > 198) & ((topo.max(axis=2) - topo.min(axis=2)) < 34)
         Image.fromarray(
-            np.dstack([topo, np.where(white, 0, 255).astype(np.uint8)]), "RGBA"
+            bleed_alpha(despeckle_white(
+                np.dstack([topo, np.where(white, 0, 255).astype(np.uint8)])
+            )), "RGBA"
         ).save(OUT / "tiles" / f"tile_topo_{i}.png")
 
         # fill = terra do meio, a faixa mais neutra
@@ -314,7 +362,8 @@ def _build_platform():
     rgb = np.array(Image.open(UPLOADS / SRC["plataforma"]).convert("RGB"))
     alpha = alpha_from_white(rgb, enclosed_limit=8)
     ys, xs = np.where(alpha > 0)
-    rgba = np.dstack([rgb, alpha])[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    rgba = bleed_alpha(np.dstack([rgb, alpha])[ys.min():ys.max() + 1,
+                                               xs.min():xs.max() + 1])
 
     escala = PLATFORM_HEIGHT / rgba.shape[0]
     cap = PLATFORM_CAP
