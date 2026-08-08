@@ -15,16 +15,31 @@ export default class PreloadScene extends Phaser.Scene {
       frameHeight: PLAYER_CELL,
     });
 
-    ['tile_grama', 'tile_terra', 'tile_caminho', 'tile_transicao'].forEach((k) =>
-      this.load.image(k, `assets/tiles/${k}.png`),
-    );
+    // Chão em 3 variações: alternando entre elas, a repetição do tile deixa
+    // de ser perceptível (a mesma pedrinha reaparecia a cada 64px).
+    [0, 1, 2].forEach((i) => {
+      this.load.image(`tile_topo_${i}`, `assets/tiles/tile_topo_${i}.png`);
+      this.load.image(`tile_fill_${i}`, `assets/tiles/tile_fill_${i}.png`);
+    });
 
-    ['arvore', 'moinho', 'cerca', 'cerca_poste_esq', 'cerca_poste_dir'].forEach((k) =>
-      this.load.image(k, `assets/props/${k}.png`),
-    );
+    [
+      'moinho', 'arvore', 'casa_taipa', 'casa_madeira', 'plataforma',
+      'cerca', 'poco', 'barraca', 'barril', 'caixa', 'forja', 'bigorna',
+      'arbusto', 'alvo_treino',
+    ].forEach((k) => this.load.image(k, `assets/props/${k}.png`));
 
     ['bg_ceu', 'bg_colinas', 'bg_arvores'].forEach((k) =>
       this.load.image(k, `assets/bg/${k}.png`),
+    );
+
+    this.load.image('retrato_anciao', 'assets/npcs/retrato_anciao.png');
+
+    ['cronica_vila_01', 'cronica_vila_02'].forEach((k) =>
+      this.load.image(k, `assets/cronicas/${k}.png`),
+    );
+
+    ['checkpoint', 'npc', 'saida', 'bloqueado'].forEach((k) =>
+      this.load.image(`icone_${k}`, `assets/ui/icons/icone_${k}.png`),
     );
 
     this.load.image('capa_menu', 'assets/ui/capa_menu.png');
