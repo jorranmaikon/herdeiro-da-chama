@@ -153,7 +153,10 @@ export default class PreloadScene extends Phaser.Scene {
       if (this.entrando) return;
       this.entrando = true;
 
-      // O gesto que abre o menu é o mesmo que libera o áudio no navegador.
+      // Destrava explicitamente antes de pedir a faixa: o Phaser só considera
+      // o áudio liberado depois de chamar unlock(), e sem isso a primeira
+      // tentativa de tocar cai no caminho de "ainda bloqueado".
+      this.sound.unlock?.();
       this.game.audio.play(this, 'mus_titulo');
 
       this.cameras.main.fadeOut(450);
@@ -161,7 +164,10 @@ export default class PreloadScene extends Phaser.Scene {
         this.scene.start('MenuScene'));
     };
 
-    this.input.once('pointerdown', entrar);
+    // pointerUP, não pointerDOWN: o navegador (e o Phaser) liberam o áudio ao
+    // SOLTAR o toque. Disparando no toque inicial, a faixa era pedida um
+    // instante antes de existir permissão para tocá-la.
+    this.input.once('pointerup', entrar);
     this.input.keyboard.once('keydown', entrar);
   }
 }

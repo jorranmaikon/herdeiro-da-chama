@@ -65,27 +65,63 @@ export default class AudioManager {
   }
 
   start(scene, key) {
-    const sm = scene.sound;
+    // Tudo aqui usa o SoundManager do JOGO, nunca o da cena. O objeto é o
+    // mesmo, mas listeners e tweens presos a uma cena morrem quando ela troca —
+    // e é exatamente durante a troca que a música precisa sobreviver.
+    const sm = this.game.sound;
 
     if (sm.context && sm.context.state === 'suspended') {
       sm.context.resume().catch(() => {});
     }
 
     if (sm.locked) {
-      sm.once('unlocked', () => this.retry(scene));
-      scene.input.once('pointerdown', () => this.retry(scene));
+      // Ainda travado pelo navegador. Registrar o listener na CENA era o bug:
+      // na tela de toque, a cena trocava no mesmo gesto e levava o listener
+      // junto, então a faixa nunca chegava a tocar.
+      this.aguardarUnlock();
+      sm.unlock?.();
       return;
     }
 
     this.stop();
 
-    const track = scene.sound.add(key, { loop: true, volume: 0 });
+    const track = sm.add(key, { loop: true, volume: 0 });
     track.play();
-    // Entrada em fade: corte seco no volume cheio soa abrupto a cada troca.
-    scene.tweens.add({ targets: track, volume: this.volume, duration: 900 });
+    this.fadeIn(track);
 
     this.current = track;
     this.currentKey = key;
+  }
+
+  /** Espera o navegador liberar o áudio e então toca na cena ativa do momento. */
+  aguardarUnlock() {
+    if (this.esperandoUnlock) return;
+    this.esperandoUnlock = true;
+
+    this.game.sound.once('unlocked', () => {
+      this.esperandoUnlock = false;
+      if (!this.enabled || !this.pendingKey) return;
+      const ativa = this.game.scene.getScenes(true)[0];
+      if (ativa) this.start(ativa, this.pendingKey);
+    });
+  }
+
+  /** Fade de entrada preso ao loop do JOGO, não ao de uma cena.
+   *
+   *  Com tween de cena, uma troca no meio do fade matava o tween com o volume
+   *  ainda perto de zero — a faixa tocava, mas inaudível.
+   */
+  fadeIn(track, duracao = 900) {
+    const inicio = performance.now();
+    const alvo = this.volume;
+
+    const passo = () => {
+      if (this.current !== track && this.currentKey !== null) return;
+      const t = Math.min(1, (performance.now() - inicio) / duracao);
+      track.setVolume(alvo * t);
+      if (t < 1) this.game.events.once('poststep', passo);
+    };
+    this.game.events.once('poststep', passo);
   }
 
   retry(scene) {
@@ -108,21 +144,29 @@ export default class AudioManager {
     this.currentKey = null;
   }
 
-  /** Silencia a faixa atual em fade, para transições entre cenas. */
+  /** Silencia a faixa atual em fade, para transições entre cenas.
+   *  Também preso ao loop do jogo: a cena que pede o fade costuma ser
+   *  justamente a que está saindo.
+   */
   fadeToStop(scene, duracao = 500) {
     if (!this.current) return;
     const antiga = this.current;
+    const volumeInicial = antiga.volume;
     this.current = null;
     this.currentKey = null;
-    scene.tweens.add({
-      targets: antiga,
-      volume: 0,
-      duration: duracao,
-      onComplete: () => {
+
+    const inicio = performance.now();
+    const passo = () => {
+      const t = Math.min(1, (performance.now() - inicio) / duracao);
+      antiga.setVolume(volumeInicial * (1 - t));
+      if (t < 1) {
+        this.game.events.once('poststep', passo);
+      } else {
         antiga.stop();
         antiga.destroy();
-      },
-    });
+      }
+    };
+    this.game.events.once('poststep', passo);
   }
 
   toggle(scene) {
