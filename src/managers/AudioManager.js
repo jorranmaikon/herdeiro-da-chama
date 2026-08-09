@@ -51,10 +51,15 @@ export default class AudioManager {
     scene.load.audio(key, AudioManager.caminho(key));
     scene.load.once('complete', () => {
       this.carregando.delete(key);
-      // Entre pedir e chegar, o jogador pode ter trocado de cena.
-      if (this.pendingKey === key && scene.scene.isActive()) {
-        this.start(scene, key);
-      }
+      if (this.pendingKey !== key) return;
+
+      // Entre pedir e chegar, o jogador pode ter trocado de cena. Toca na cena
+      // que estiver ativa AGORA, não naquela que fez o pedido — senão a faixa
+      // baixa e não toca.
+      const ativa = scene.scene.isActive()
+        ? scene
+        : this.game.scene.getScenes(true)[0];
+      if (ativa) this.start(ativa, key);
     });
     scene.load.start();
   }

@@ -15,7 +15,7 @@ Rode a partir da raiz do projeto:  python3 tools/build_assets.py
 
 import pathlib
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 from scipy import ndimage
 
 UPLOADS = pathlib.Path("/mnt/user-data/uploads")
@@ -611,6 +611,7 @@ def build_parallax():
 # ----------------------------------------------------------------------
 ICON_NAMES = ["icone_checkpoint", "icone_npc", "icone_saida", "icone_bloqueado"]
 ICON_SIZE = 48
+CAPA_BLUR = 9
 
 
 def _fit(im, size, anchor_bottom=False):
@@ -652,7 +653,15 @@ def build_ui_and_narrative():
                            cy=int(h * 0.835), cx=int(w * 0.915), half=26)
         Image.fromarray(rgb).save(OUT / "cronicas" / f"{name}.png")
 
-    print(f"  {len(ICON_NAMES)} ícones, 1 retrato, 2 Crônicas")
+    # Versão borrada e escurecida da capa, para a tela de "toque para começar".
+    # O desfoque é feito aqui e não no Phaser: um pipeline de blur em tempo real
+    # custa caro no celular para um efeito que nunca muda.
+    capa = Image.open(OUT / "ui" / "capa_menu.png").convert("RGB")
+    capa = capa.filter(ImageFilter.GaussianBlur(radius=CAPA_BLUR))
+    escurecida = Image.blend(capa, Image.new("RGB", capa.size, (10, 8, 14)), 0.45)
+    escurecida.save(OUT / "ui" / "capa_menu_blur.png")
+
+    print(f"  {len(ICON_NAMES)} ícones, 1 retrato, 2 Crônicas, capa desfocada")
 
 
 if __name__ == "__main__":

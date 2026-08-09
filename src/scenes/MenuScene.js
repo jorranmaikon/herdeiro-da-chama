@@ -12,6 +12,8 @@ export default class MenuScene extends Phaser.Scene {
   create() {
     this.add.image(0, 0, 'capa_menu').setOrigin(0).setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
+    // A trilha já começou na tela de toque do PreloadScene e atravessa a
+    // transição — pedir de novo aqui a reiniciaria do zero.
     this.game.audio.play(this, 'mus_titulo');
     this.game.audio.createToggle(this);
 

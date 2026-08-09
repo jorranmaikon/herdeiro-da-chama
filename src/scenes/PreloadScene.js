@@ -9,7 +9,7 @@ import { GAME_WIDTH, GAME_HEIGHT, PLAYER_CELL } from '../config/gameConfig.js';
 // continua mostrando arte velha mesmo depois do deploy. Foi o que aconteceu
 // com o Ancião: sprite e retrato novos no repositório, versão anterior na
 // tela.
-const ASSET_VERSION = 6;
+const ASSET_VERSION = 7;
 
 // Carrega todos os assets do jogo (08_ARQUITETURA_TECNICA.md, Seção 4).
 export default class PreloadScene extends Phaser.Scene {
@@ -60,12 +60,19 @@ export default class PreloadScene extends Phaser.Scene {
     );
 
     this.load.image('capa_menu', this.url('assets/ui/capa_menu.png'));
+    this.load.image('capa_menu_blur', this.url('assets/ui/capa_menu_blur.png'));
     this.load.image('mapa_continente', this.url('assets/ui/mapa_continente.png'));
     this.load.image('mapa_vila', this.url('assets/ui/mapa_vila.png'));
 
-    // As trilhas NÃO entram aqui. Somam 13 MB e deixariam a primeira tela em
-    // branco por vários segundos no celular — o AudioManager baixa cada uma na
-    // primeira vez que é pedida (ver managers/AudioManager.js).
+    // Das quatro trilhas, só a do título entra aqui. As outras somam 10 MB e
+    // deixariam a primeira tela em branco por vários segundos no celular — o
+    // AudioManager baixa cada uma na primeira vez que é pedida.
+    //
+    // A do título é a exceção porque precisa estar pronta no instante do toque:
+    // se dependesse de download, a cena trocaria antes de a faixa chegar e o
+    // menu abriria em silêncio, que é justamente o que a tela de toque existe
+    // para evitar.
+    this.load.audio('mus_titulo', this.url('assets/audio/mus_titulo.mp3'));
   }
 
   showLoadingBar() {
@@ -90,6 +97,71 @@ export default class PreloadScene extends Phaser.Scene {
   }
 
   create() {
-    this.scene.start('MenuScene');
+    this.telaDeToque();
+  }
+
+  // Porta de entrada do jogo.
+  //
+  // Existe por um motivo específico: navegador nenhum deixa um site tocar som
+  // antes de o usuário interagir com a página. Sem esta tela, quem abrisse o
+  // jogo cairia direto no menu EM SILÊNCIO, e a música do título — a primeira
+  // coisa que dá identidade ao jogo — só entraria depois de um toque qualquer,
+  // possivelmente já no meio de outra tela.
+  //
+  // Pedindo um toque aqui, o gesto acontece antes do menu existir, e a música
+  // começa junto com ele.
+  telaDeToque() {
+    const { width, height } = this.cameras.main;
+
+    // Capa desfocada: o jogador já vê o mundo do jogo, mas o desfoque deixa
+    // claro que isto é uma antessala, não o menu.
+    this.add
+      .image(0, 0, 'capa_menu_blur')
+      .setOrigin(0)
+      .setDisplaySize(width, height);
+
+    this.add
+      .text(width / 2, height / 2 - 40, 'HERDEIRO DA CHAMA', {
+        fontFamily: 'monospace',
+        fontSize: '40px',
+        color: '#ede3d0',
+        stroke: '#14110c',
+        strokeThickness: 6,
+      })
+      .setOrigin(0.5);
+
+    const convite = this.add
+      .text(width / 2, height / 2 + 46, 'toque na tela', {
+        fontFamily: 'monospace',
+        fontSize: '26px',
+        color: '#ffe9b0',
+        stroke: '#14110c',
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5);
+
+    this.tweens.add({
+      targets: convite,
+      alpha: 0.35,
+      duration: 1100,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    const entrar = () => {
+      if (this.entrando) return;
+      this.entrando = true;
+
+      // O gesto que abre o menu é o mesmo que libera o áudio no navegador.
+      this.game.audio.play(this, 'mus_titulo');
+
+      this.cameras.main.fadeOut(450);
+      this.cameras.main.once('camerafadeoutcomplete', () =>
+        this.scene.start('MenuScene'));
+    };
+
+    this.input.once('pointerdown', entrar);
+    this.input.keyboard.once('keydown', entrar);
   }
 }
