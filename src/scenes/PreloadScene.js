@@ -64,15 +64,19 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('mapa_continente', this.url('assets/ui/mapa_continente.png'));
     this.load.image('mapa_vila', this.url('assets/ui/mapa_vila.png'));
 
-    // Das quatro trilhas, só a do título entra aqui. As outras somam 10 MB e
-    // deixariam a primeira tela em branco por vários segundos no celular — o
-    // AudioManager baixa cada uma na primeira vez que é pedida.
+    // TODAS as trilhas entram aqui, e isso é deliberado apesar dos 13 MB.
     //
-    // A do título é a exceção porque precisa estar pronta no instante do toque:
-    // se dependesse de download, a cena trocaria antes de a faixa chegar e o
-    // menu abriria em silêncio, que é justamente o que a tela de toque existe
-    // para evitar.
-    this.load.audio('mus_titulo', this.url('assets/audio/mus_titulo.mp3'));
+    // No iOS, cada elemento de áudio nasce bloqueado e só é liberado se
+    // receber play() durante um gesto real do usuário. Só existe um gesto
+    // garantido no jogo inteiro: o toque na tela de entrada. Uma faixa baixada
+    // depois dele nunca encontraria outro gesto para se liberar e ficaria muda
+    // para sempre.
+    //
+    // Carregando as quatro antes, o toque libera todas de uma vez. O custo é
+    // uma barra de carregamento mais longa; o benefício é o áudio funcionar.
+    ['mus_titulo', 'mus_cronica', 'mus_mapa', 'mus_fase'].forEach((k) =>
+      this.load.audio(k, this.url(`assets/audio/${k}.mp3`)),
+    );
   }
 
   showLoadingBar() {
@@ -149,14 +153,21 @@ export default class PreloadScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
+    // O `play()` precisa acontecer DENTRO do handler DOM do gesto.
+    //
+    // No iOS, um elemento de áudio só fica liberado se receber .play() durante
+    // o próprio evento de toque. O sistema de input do Phaser não serve aqui:
+    // ele enfileira os eventos e os processa no loop de update, ou seja, no
+    // frame seguinte — quando o Safari já não considera mais que há um gesto
+    // em andamento, e recusa o play em silêncio, sem erro.
+    //
+    // Por isso este é o único ponto do jogo que escuta o DOM direto.
     const entrar = () => {
       if (this.entrando) return;
       this.entrando = true;
 
-      // Destrava explicitamente antes de pedir a faixa: o Phaser só considera
-      // o áudio liberado depois de chamar unlock(), e sem isso a primeira
-      // tentativa de tocar cai no caminho de "ainda bloqueado".
-      this.sound.unlock?.();
+      limpar();
+      this.game.audio.desbloquear(this);
       this.game.audio.play(this, 'mus_titulo');
 
       this.cameras.main.fadeOut(450);
@@ -164,10 +175,16 @@ export default class PreloadScene extends Phaser.Scene {
         this.scene.start('MenuScene'));
     };
 
-    // pointerUP, não pointerDOWN: o navegador (e o Phaser) liberam o áudio ao
-    // SOLTAR o toque. Disparando no toque inicial, a faixa era pedida um
-    // instante antes de existir permissão para tocá-la.
-    this.input.once('pointerup', entrar);
-    this.input.keyboard.once('keydown', entrar);
+    const alvo = this.game.canvas || document.body;
+    const eventos = ['touchend', 'click', 'keydown'];
+    const limpar = () => eventos.forEach((e) => {
+      alvo.removeEventListener(e, entrar);
+      document.removeEventListener(e, entrar);
+    });
+    eventos.forEach((e) => {
+      alvo.addEventListener(e, entrar);
+      document.addEventListener(e, entrar);
+    });
+    this.events.once('shutdown', limpar);
   }
 }

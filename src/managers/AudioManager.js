@@ -93,6 +93,47 @@ export default class AudioManager {
     this.currentKey = key;
   }
 
+  /** Libera as faixas já em cache, obrigatoriamente DENTRO de um gesto do
+   *  usuário.
+   *
+   *  No iOS um elemento de áudio nasce bloqueado e só é liberado se receber
+   *  .play() durante um evento de toque real. O truque padrão é dar play e
+   *  pausar imediatamente: o som não é ouvido, mas a tag passa a estar
+   *  liberada para tocar depois, a qualquer momento.
+   *
+   *  O unlock() do Phaser faz isso sozinho, mas agendando para o PRÓXIMO
+   *  touchend — o que nunca chegava, porque a tela de toque sai de cena no
+   *  primeiro. Aqui o desbloqueio acontece no gesto que já está acontecendo.
+   */
+  desbloquear(scene) {
+    const sm = this.game.sound;
+
+    if (sm.context && sm.context.state === 'suspended') {
+      sm.context.resume().catch(() => {});
+    }
+
+    const cache = this.game.cache.audio;
+    cache.entries.each((key, tags) => {
+      if (!Array.isArray(tags)) return true;
+      tags.forEach((tag) => {
+        try {
+          const promessa = tag.play();
+          if (promessa && promessa.then) promessa.catch(() => {});
+          tag.pause();
+          tag.currentTime = 0;
+          tag.dataset.locked = 'false';
+        } catch (e) {
+          // Navegador recusou. O botão de som segue como alternativa.
+        }
+      });
+      return true;
+    });
+
+    sm.locked = false;
+    sm.unlocked = true;
+    return sm;
+  }
+
   /** Espera o navegador liberar o áudio e então toca na cena ativa do momento. */
   aguardarUnlock() {
     if (this.esperandoUnlock) return;

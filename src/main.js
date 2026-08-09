@@ -51,10 +51,13 @@ game.audio = new AudioManager(game);
 // um arrastar, uma tecla, uma rolagem. Assim, na prática, a música entra no
 // instante em que a pessoa encosta na tela, sem precisar procurar botão de som.
 const destravarAudio = () => {
-  const ctx = game.sound?.context;
-  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
   const cena = game.scene.getScenes(true)[0];
-  if (cena) game.audio.retry(cena);
+  if (!cena) return;
+  // Libera as tags de áudio aproveitando ESTE gesto — no iOS não basta
+  // retomar o contexto, cada elemento precisa receber play() dentro de uma
+  // interação real.
+  game.audio.desbloquear(cena);
+  game.audio.retry(cena);
 };
 [
   'pointerdown', 'pointerup', 'touchstart', 'touchend',
