@@ -43,16 +43,24 @@ const game = new Phaser.Game({
 // transições sem reiniciar.
 game.audio = new AudioManager(game);
 
-// Destrava o áudio no primeiro gesto em qualquer lugar da página — sem isso
-// a música só começaria depois de tocar no botão de som.
+// Destrava o áudio no primeiro gesto em QUALQUER lugar da página.
+//
+// Navegador nenhum deixa um site começar a tocar som sozinho antes de o
+// usuário interagir — é política do browser e não há contorno por código. O
+// que dá para fazer é reagir ao primeiro gesto, seja ele qual for: um toque,
+// um arrastar, uma tecla, uma rolagem. Assim, na prática, a música entra no
+// instante em que a pessoa encosta na tela, sem precisar procurar botão de som.
 const destravarAudio = () => {
   const ctx = game.sound?.context;
   if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
   const cena = game.scene.getScenes(true)[0];
   if (cena) game.audio.retry(cena);
 };
-['pointerdown', 'touchend', 'keydown'].forEach((e) =>
-  document.addEventListener(e, destravarAudio),
+[
+  'pointerdown', 'pointerup', 'touchstart', 'touchend',
+  'mousedown', 'keydown', 'wheel', 'scroll',
+].forEach((e) =>
+  document.addEventListener(e, destravarAudio, { passive: true }),
 );
 
 // O navegador suspende o áudio ao trocar de aba. Ao voltar, retoma.

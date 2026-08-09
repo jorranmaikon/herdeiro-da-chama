@@ -63,9 +63,9 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('mapa_continente', this.url('assets/ui/mapa_continente.png'));
     this.load.image('mapa_vila', this.url('assets/ui/mapa_vila.png'));
 
-    this.load.audio('mus_titulo', this.url('assets/audio/titulo.mp3'));
-    this.load.audio('mus_mapa', this.url('assets/audio/mapa.mp3'));
-    this.load.audio('mus_fase', this.url('assets/audio/fase_vila.mp3'));
+    // As trilhas NÃO entram aqui. Somam 13 MB e deixariam a primeira tela em
+    // branco por vários segundos no celular — o AudioManager baixa cada uma na
+    // primeira vez que é pedida (ver managers/AudioManager.js).
   }
 
   showLoadingBar() {

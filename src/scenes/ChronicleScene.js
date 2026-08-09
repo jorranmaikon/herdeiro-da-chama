@@ -82,6 +82,10 @@ export default class ChronicleScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-ENTER', () => this.avancar());
     this.input.keyboard.on('keydown-ESC', () => this.encerrar());
 
+    // Trilha própria das Crônicas: a mesma nas duas, para que abertura e
+    // partida soem como as duas pontas do mesmo arco.
+    this.game.audio.play(this, 'mus_cronica');
+
     this.cameras.main.fadeIn(900);
     this.time.delayedCall(700, () => this.mostrarBloco());
   }
@@ -152,6 +156,9 @@ export default class ChronicleScene extends Phaser.Scene {
 
     this.timerTexto?.remove();
     this.timerBloco?.remove();
+
+    // A música some junto com a imagem, em vez de ser cortada na troca.
+    this.game.audio.fadeToStop(this, 900);
 
     this.cameras.main.fadeOut(900);
     this.cameras.main.once('camerafadeoutcomplete', () => {
