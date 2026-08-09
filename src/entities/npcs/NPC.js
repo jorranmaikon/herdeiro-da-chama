@@ -76,8 +76,10 @@ export default class NPC extends Phaser.GameObjects.Container {
     if (paraDireita === this.olhandoDireita) return;
 
     this.olhandoDireita = paraDireita;
-    // A arte de origem olha para a frente; espelhar dá a leitura de virar-se.
-    this.corpo.setFlipX?.(paraDireita);
+    // A arte de origem já olha para a DIREITA, então espelhar é o que faz o
+    // NPC virar-se para a esquerda — o inverso do que estava aqui, que o
+    // deixava sempre de costas para o jogador.
+    this.corpo.setFlipX?.(!paraDireita);
   }
 
   /** Chamado pela cena a cada frame. Devolve true se o jogador está no raio. */

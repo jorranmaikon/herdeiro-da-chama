@@ -50,19 +50,30 @@ game.audio = new AudioManager(game);
 // que dá para fazer é reagir ao primeiro gesto, seja ele qual for: um toque,
 // um arrastar, uma tecla, uma rolagem. Assim, na prática, a música entra no
 // instante em que a pessoa encosta na tela, sem precisar procurar botão de som.
+const EVENTOS_GESTO = [
+  'pointerup', 'touchend', 'mousedown', 'keydown',
+];
+
 const destravarAudio = () => {
   const cena = game.scene.getScenes(true)[0];
   if (!cena) return;
-  // Libera as tags de áudio aproveitando ESTE gesto — no iOS não basta
-  // retomar o contexto, cada elemento precisa receber play() dentro de uma
-  // interação real.
+
+  // Libera as tags aproveitando ESTE gesto — no iOS não basta retomar o
+  // contexto, cada elemento precisa receber play() dentro de uma interação
+  // real.
   game.audio.desbloquear(cena);
   game.audio.retry(cena);
+
+  // Uma vez liberado, os listeners saem. Mantê-los ativos fazia o
+  // desbloqueio rodar a cada toque de gameplay e travava o jogo.
+  if (game.audio.desbloqueado) {
+    EVENTOS_GESTO.forEach((e) =>
+      document.removeEventListener(e, destravarAudio),
+    );
+  }
 };
-[
-  'pointerdown', 'pointerup', 'touchstart', 'touchend',
-  'mousedown', 'keydown', 'wheel', 'scroll',
-].forEach((e) =>
+
+EVENTOS_GESTO.forEach((e) =>
   document.addEventListener(e, destravarAudio, { passive: true }),
 );
 

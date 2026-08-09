@@ -24,6 +24,7 @@ export default class AudioManager {
     this.volume = 0.6;
     this.enabled = true;
     this.carregando = new Set();
+    this.desbloqueado = false;
   }
 
   /** Caminho do arquivo de uma faixa. */
@@ -87,10 +88,12 @@ export default class AudioManager {
 
     const track = sm.add(key, { loop: true, volume: 0 });
     track.play();
-    this.fadeIn(track);
 
+    // current precisa estar definido ANTES do fade: o fade compara com ele
+    // para saber se ainda é a faixa vigente.
     this.current = track;
     this.currentKey = key;
+    this.fadeIn(track);
   }
 
   /** Libera as faixas já em cache, obrigatoriamente DENTRO de um gesto do
@@ -106,6 +109,12 @@ export default class AudioManager {
    *  primeiro. Aqui o desbloqueio acontece no gesto que já está acontecendo.
    */
   desbloquear(scene) {
+    // Só uma vez. Percorrer o cache dando play/pause em cada MP3 é caro, e
+    // isto era chamado a CADA toque na tela: num jogo de plataforma com botões
+    // virtuais, o resultado foi engasgo de áudio e queda de frame rate.
+    if (this.desbloqueado) return this.game.sound;
+    this.desbloqueado = true;
+
     const sm = this.game.sound;
 
     if (sm.context && sm.context.state === 'suspended') {
@@ -157,7 +166,10 @@ export default class AudioManager {
     const alvo = this.volume;
 
     const passo = () => {
-      if (this.current !== track && this.currentKey !== null) return;
+      // Encerra se a faixa já foi trocada: sem esta saída, dois fades
+      // simultâneos disputariam o volume a cada frame.
+      if (this.current !== track) return;
+
       const t = Math.min(1, (performance.now() - inicio) / duracao);
       track.setVolume(alvo * t);
       if (t < 1) this.game.events.once('poststep', passo);

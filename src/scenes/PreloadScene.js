@@ -124,18 +124,11 @@ export default class PreloadScene extends Phaser.Scene {
       .setOrigin(0)
       .setDisplaySize(width, height);
 
-    this.add
-      .text(width / 2, height / 2 - 40, 'HERDEIRO DA CHAMA', {
-        fontFamily: 'monospace',
-        fontSize: '40px',
-        color: '#ede3d0',
-        stroke: '#14110c',
-        strokeThickness: 6,
-      })
-      .setOrigin(0.5);
-
+    // Sem o nome do jogo aqui: ele já está desenhado na capa e aparece inteiro
+    // no menu, logo em seguida. Repetir por cima do próprio título borrado só
+    // duplicava a informação.
     const convite = this.add
-      .text(width / 2, height / 2 + 46, 'toque na tela', {
+      .text(width / 2, height / 2, 'toque na tela', {
         fontFamily: 'monospace',
         fontSize: '26px',
         color: '#ffe9b0',
