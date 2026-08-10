@@ -92,7 +92,10 @@ export default class BosqueSceneBase extends BiomeSceneBase {
         (seg[0] + seg[1]) * TILE - margem,
       );
 
-      this.physics.add.collider(inimigo, this.solids);
+      // Os colisores são guardados no próprio inimigo para poderem ser
+      // destruídos junto com ele. Ver aoMorrer(), abaixo.
+      inimigo.colisores = [this.physics.add.collider(inimigo, this.solids)];
+      inimigo.aoMorrer = () => this.removerInimigo(inimigo);
       return inimigo;
     });
   }
@@ -145,6 +148,20 @@ export default class BosqueSceneBase extends BiomeSceneBase {
         this.atacarInimigo(inimigo);
       }
     });
+  }
+
+  // Um inimigo destruído deixa para trás os colisores que o referenciam, e o
+  // corpo deles vira null. A partir daí o passo de física lança exceção a cada
+  // frame, o update inteiro da cena para de rodar e NENHUM golpe seguinte é
+  // resolvido — o sintoma é matar o primeiro inimigo e nunca mais acertar
+  // nada. O Phaser não limpa esses colisores sozinho.
+  removerInimigo(inimigo) {
+    inimigo.colisores?.forEach((c) => this.physics.world.removeCollider(c));
+    inimigo.colisores = null;
+    this.golpeConsumido.delete(inimigo);
+
+    const i = this.enemies.indexOf(inimigo);
+    if (i !== -1) this.enemies.splice(i, 1);
   }
 
   // O golpe do jogador só conta UMA vez por ataque. Sem esta trava, o overlap
@@ -351,7 +368,9 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     // Só o dano por CONTATO usa overlap de física. O golpe é resolvido à mão
     // em resolverGolpe(), com caixa própria.
     this.enemies.forEach((inimigo) => {
-      this.physics.add.overlap(this.player, inimigo, () => this.tocarInimigo(inimigo));
+      inimigo.colisores.push(
+        this.physics.add.overlap(this.player, inimigo, () => this.tocarInimigo(inimigo)),
+      );
     });
 
     this.afterBosquePlayerBuilt?.();
@@ -364,6 +383,9 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     if (!this.player.isAttacking) this.golpeConsumido.clear();
     this.resolverGolpe();
 
-    this.enemies.forEach((inimigo) => inimigo.atualizar(this.player, time));
+    // Cópia da lista: um inimigo pode morrer durante o próprio update e se
+    // remover de this.enemies, o que embaralharia o índice de um forEach
+    // rodando sobre o array original.
+    [...this.enemies].forEach((inimigo) => inimigo.atualizar(this.player, time));
   }
 }

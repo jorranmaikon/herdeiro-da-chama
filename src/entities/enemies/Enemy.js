@@ -152,13 +152,15 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   morrer() {
     this.estado = ESTADO.MORTO;
-    this.body.enable = false;
     this.setVelocity(0, 0);
+    this.body.enable = false;
+
+    // A cena desfaz os vínculos AGORA, não ao fim da animação: entre a morte e
+    // o último quadro passam vários frames, e nesse intervalo o inimigo já não
+    // deve participar de colisão nem de golpe.
+    this.aoMorrer?.();
     this.tocar('morte', true);
-    this.once(`animationcomplete-${this.cfg.textura}-morte`, () => {
-      this.aoMorrer?.();
-      this.destroy();
-    });
+    this.once(`animationcomplete-${this.cfg.textura}-morte`, () => this.destroy());
   }
 
   get vivo() {

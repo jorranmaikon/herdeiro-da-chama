@@ -9,6 +9,11 @@
     "preview": "vite preview",
     "assets": "python3 tools/build_assets.py"
   },
-  "dependencies": { "phaser": "^3.80.1" },
-  "devDependencies": { "vite": "^5.4.0" }
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1",
+    "vite": "^5.4.0"
+  }
 }
