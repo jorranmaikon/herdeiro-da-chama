@@ -14,6 +14,12 @@ import Phaser from 'phaser';
 // Nem todo inimigo passa por todos os estados. Um de padrão Contato
 // (04_BESTIARIO_MACRO.md, Seção 3) não tem ATACAR separado de PERSEGUIR: o
 // dano acontece no encostar. Estados não usados simplesmente não são visitados.
+// Piscar de dano: vermelho puro, alternado com a cor normal.
+const COR_DANO = 0xff3b30;
+const FLASH_INTERVALO_MS = 70;
+const FLASH_DANO_MS = 280;
+const FLASH_MORTE_MS = 420;
+
 export const ESTADO = {
   IDLE: 'idle',
   ALERTA: 'alerta',
@@ -156,6 +162,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.estado = ESTADO.RECUPERAR;
     this.setVelocityX(-this.direcao * this.cfg.knockback);
+    this.piscarVermelho(FLASH_DANO_MS);
     this.tocar('dano', true);
     this.once(`animationcomplete-${this.cfg.textura}-dano`, () => {
       if (this.estado === ESTADO.RECUPERAR) this.estado = ESTADO.IDLE;
@@ -173,6 +180,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     //
     // Só a velocidade horizontal zera; a queda continua, e ele morre no chão.
     this.setVelocityX(0);
+    this.piscarVermelho(FLASH_MORTE_MS);
 
     // A cena desfaz os vínculos AGORA, não ao fim da animação: entre a morte e
     // o último quadro passam vários frames, e nesse intervalo o inimigo já não
@@ -192,6 +200,31 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     const { quadros, taxa } = this.cfg.animacoes.morte;
     this.scene.time.delayedCall((quadros.length / taxa) * 1000, () => this.destroy());
+  }
+
+  // Feedback de acerto. Sem ele o golpe some no meio da animação e o jogador
+  // não sabe se conectou — especialmente no Lobo, que aguenta três.
+  //
+  // setTintFill pinta o sprite INTEIRO de vermelho, ignorando a cor original.
+  // setTint comum apenas multiplica, e num inimigo já escuro como o Lobo o
+  // resultado quase não aparece.
+  piscarVermelho(duracao) {
+    const alternar = () => {
+      if (!this.active) return;
+      if (this.isTinted) this.clearTint();
+      else this.setTintFill(COR_DANO);
+    };
+
+    this.scene.time.addEvent({
+      delay: FLASH_INTERVALO_MS,
+      repeat: Math.max(0, Math.round(duracao / FLASH_INTERVALO_MS) - 1),
+      callback: alternar,
+    });
+    this.setTintFill(COR_DANO);
+
+    this.scene.time.delayedCall(duracao, () => {
+      if (this.active) this.clearTint();
+    });
   }
 
   get vivo() {

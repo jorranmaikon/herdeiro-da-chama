@@ -438,6 +438,26 @@ INIMIGOS = {
 }
 
 
+def _so_maior_mancha(cel):
+    """Mantém apenas a maior mancha opaca da célula.
+
+    Cada célula tem exatamente uma criatura. Tudo que estiver solto ao lado
+    dela é o carimbo do gerador — que aqui sobrevive ao corte por cor, porque
+    é uma estrela clara sobre magenta e não encosta no desenho.
+
+    Não dá para rodar isso na folha inteira: as 16 células juntas são 16
+    manchas, e a maior comeria as outras 15.
+    """
+    lbl, n = ndimage.label(cel[:, :, 3] > 0)
+    if n <= 1:
+        return cel
+    tam = ndimage.sum(cel[:, :, 3] > 0, lbl, range(1, n + 1))
+    maior = int(np.argmax(tam)) + 1
+    out = cel.copy()
+    out[:, :, 3] = np.where(lbl == maior, out[:, :, 3], 0)
+    return out
+
+
 def build_inimigos():
     for nome, cfg in INIMIGOS.items():
         _fatiar_inimigo(nome, cfg)
@@ -468,6 +488,7 @@ def _fatiar_inimigo(nome, cfg):
             cel = folha[linha * lado + margem:(linha + 1) * lado - margem,
                         coluna * lado + margem:(coluna + 1) * lado - margem]
             cel = _aparar_contorno_escuro(cel)
+            cel = _so_maior_mancha(cel)
             op = cel[:, :, 3] > 0
             recortes.append(_recortar(cel) if op.any() else None)
 
