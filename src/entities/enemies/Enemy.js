@@ -71,15 +71,15 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   // textura evita recriar a cada inimigo que nasce.
   criarAnimacoes(scene) {
     const { textura, animacoes } = this.cfg;
-    Object.entries(animacoes).forEach(([nome, { linha, taxa, repetir = 0 }]) => {
+    Object.entries(animacoes).forEach(([nome, { quadros, taxa, repetir = 0 }]) => {
       const chave = `${textura}-${nome}`;
       if (scene.anims.exists(chave)) return;
       scene.anims.create({
         key: chave,
-        frames: scene.anims.generateFrameNumbers(textura, {
-          start: linha * 4,
-          end: linha * 4 + 3,
-        }),
+        // Lista explícita em vez de uma linha inteira da folha: a ordem de
+        // leitura da arte nem sempre é a ordem da animação, e algumas linhas
+        // têm célula vazia no fim.
+        frames: quadros.map((frame) => ({ key: textura, frame })),
         frameRate: taxa,
         repeat: repetir,
       });

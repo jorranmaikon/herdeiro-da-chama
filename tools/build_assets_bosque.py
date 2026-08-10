@@ -53,6 +53,7 @@ SRC = {
     "bg_copa":     "3CE1B8A2-49F1-4256-B537-85851734AE08.png",
     "bg_floresta": "196ec52d5f0e3af9ea35bd6d2ecdcfc60ec6b90c.png",
     "bg_arvore":   "0DF6980D-F490-4128-A075-CABEBF13851F.png",
+    "slime":       "davinci_especifica__o_t_cnica__folha_de_sprite_de_pixel_ar.png",
 }
 
 # Alturas de exibição, em px de tela.
@@ -420,9 +421,70 @@ def build_parallax():
     print(f"  parallax: {len(PARALLAX_HEIGHT)} camadas")
 
 
+# ----------------------------------------------------------------------
+# Inimigos
+# ----------------------------------------------------------------------
+SLIME_CELULA = 128       # célula final, em px de tela
+SLIME_ALTURA_MAX = 104   # altura do maior quadro dentro da célula
+SLIME_BASE = 122         # linha em que o corpo se apoia
+
+
+def build_slime():
+    """Fatia a folha 4x4 do Slime e normaliza os quadros.
+
+    Dois cuidados que a folha crua não tem:
+
+    1. Cada célula vem com uma moldura preta desenhada. Ela é aparada antes do
+       recorte, senão vira um retângulo escuro em volta do inimigo.
+    2. Os quadros têm tamanhos diferentes entre si. Todos são reduzidos pelo
+       MESMO fator e apoiados na mesma linha de base — reduzir cada um pela
+       própria altura faria o Slime crescer e encolher durante a animação, e
+       ancorar pelo centro o faria flutuar.
+    """
+    folha = _rgba_croma(UPLOADS / SRC["slime"], isolar=False)
+    lado = folha.shape[0] // 4
+
+    # Apara a moldura de cada célula: 4% de cada lado cobre a espessura da
+    # linha com folga, sem encostar no desenho.
+    margem = round(lado * 0.04)
+
+    recortes = []
+    for linha in range(4):
+        for coluna in range(4):
+            cel = folha[linha * lado + margem:(linha + 1) * lado - margem,
+                        coluna * lado + margem:(coluna + 1) * lado - margem]
+            cel = _aparar_contorno_escuro(cel)
+            op = cel[:, :, 3] > 0
+            recortes.append(_recortar(cel) if op.any() else None)
+
+    altura_maxima = max(r.shape[0] for r in recortes if r is not None)
+    escala = SLIME_ALTURA_MAX / altura_maxima
+
+    destino = OUT / "sprites" / BIOMA
+    destino.mkdir(parents=True, exist_ok=True)
+    folha_final = Image.new("RGBA", (SLIME_CELULA * 4, SLIME_CELULA * 4),
+                            (0, 0, 0, 0))
+
+    for i, recorte in enumerate(recortes):
+        if recorte is None:
+            continue
+        h = max(1, round(recorte.shape[0] * escala))
+        w = max(1, round(recorte.shape[1] * escala))
+        im = Image.fromarray(recorte, "RGBA").resize((w, h), Image.LANCZOS)
+        folha_final.alpha_composite(
+            im,
+            ((i % 4) * SLIME_CELULA + (SLIME_CELULA - w) // 2,
+             (i // 4) * SLIME_CELULA + SLIME_BASE - h),
+        )
+
+    folha_final.save(destino / "slime.png")
+    print(f"  slime: 4x4 células de {SLIME_CELULA}px")
+
+
 if __name__ == "__main__":
     print("Gerando assets do Bosque Esmeralda...")
     build_terreno()
     build_plataformas()
     build_parallax()
+    build_slime()
     print("Pronto.")

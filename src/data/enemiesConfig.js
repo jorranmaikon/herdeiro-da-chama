@@ -20,8 +20,11 @@ export const SLIME = {
 
   // Corpo bem menor que a célula: o Slime ocupa pouco mais da metade dela, e
   // a hitbox acompanha o corpo, não o quadro.
-  corpoW: 68,
-  corpoH: 40,
+  // Corpo ajustado à arte definitiva, que é mais alta e mais redonda que a
+  // provisória. Continua menor que a célula: a hitbox acompanha o corpo, não
+  // o quadro.
+  corpoW: 84,
+  corpoH: 64,
 
   vida: 2,          // dois golpes do ataque básico
   dano: 1,          // teto de um Comum (05_BALANCEAMENTO.md, Seção 2)
@@ -34,10 +37,13 @@ export const SLIME = {
   alcanceDeteccao: 260,
   knockback: 180,
 
+  // Índices na folha 4x4, contados da esquerda para a direita e de cima para
+  // baixo. Não seguem a linha inteira: em `dano` o quadro de impacto (5) vem
+  // primeiro, e `morte` ignora a célula 15, que está vazia na arte.
   animacoes: {
-    idle:  { linha: 0, taxa: 4, repetir: -1 },
-    pulo:  { linha: 1, taxa: 8 },
-    dano:  { linha: 2, taxa: 12 },
-    morte: { linha: 3, taxa: 9 },
+    idle:  { quadros: [0, 1, 2, 3], taxa: 4, repetir: -1 },
+    pulo:  { quadros: [4, 5, 6, 7], taxa: 8 },
+    dano:  { quadros: [9, 10, 8], taxa: 12 },
+    morte: { quadros: [12, 13, 14], taxa: 8 },
   },
 };

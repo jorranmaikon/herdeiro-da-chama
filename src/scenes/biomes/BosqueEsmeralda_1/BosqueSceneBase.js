@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import {
   GAME_HEIGHT, TILE, GROUND_INSET, PLAYER_HEIGHT,
 } from '../../../config/gameConfig.js';
@@ -9,7 +10,7 @@ import { SLIME } from '../../../data/enemiesConfig.js';
 // 03_GAMEPLAY_MACRO.md é hurtbox pequena e alcance folgado — o jogo pune
 // leitura ruim, nunca mira imprecisa.
 const ATTACK_W = 84;
-const ATTACK_H = 96;
+const ATTACK_H = 110;
 const ATTACK_OFFSET = 10;
 
 // Recuo do topo de colisão da plataforma de pedra, acompanhando o musgo vazado
@@ -98,40 +99,43 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     });
   }
 
-  // Hitbox do ataque: uma caixa curta À FRENTE do jogador
+  // Hitbox do ataque: um retângulo curto À FRENTE do jogador
   // (03_GAMEPLAY_MACRO.md, Seção 3), não o corpo dele.
   //
-  // Antes o acerto era testado com o próprio corpo do jogador contra o do
-  // inimigo, o que obrigava a praticamente entrar dentro do Slime para
-  // acertar. A espada alcança bem além do sprite, e a hitbox precisa
-  // acompanhar isso.
-  buildAttackZone() {
-    this.attackZone = this.add.zone(0, 0, ATTACK_W, ATTACK_H);
-    this.physics.add.existing(this.attackZone);
-    this.attackZone.body.setAllowGravity(false);
-    this.attackZone.body.enable = false;
+  // Testado à mão, sem corpo de física. A primeira tentativa usava uma zona
+  // com corpo ligado e desligado a cada golpe, e o acerto dependia de o
+  // passo de física cair dentro da janela do ataque — o que falhava com
+  // frequência. Um teste de retângulos no update é determinístico, roda no
+  // frame exato do golpe e é mais simples de ler.
+  areaDoGolpe() {
+    const frente = this.player.flipX ? -1 : 1;
+    return new Phaser.Geom.Rectangle(
+      this.player.x + (frente > 0 ? ATTACK_OFFSET : -ATTACK_OFFSET - ATTACK_W),
+      this.player.y - PLAYER_HEIGHT * 0.9,
+      ATTACK_W,
+      ATTACK_H,
+    );
   }
 
-  // Segue o jogador enquanto o ataque dura e some no resto do tempo. Ligar e
-  // desligar o corpo é mais barato que criar e destruir a zona a cada golpe.
-  updateAttackZone() {
-    const ativo = this.player.isAttacking && !this.player.isDead;
-    this.attackZone.body.enable = ativo;
-    if (!ativo) return;
+  resolverGolpe() {
+    if (!this.player.isAttacking || this.player.isDead) return;
 
-    const frente = this.player.flipX ? -1 : 1;
-    this.attackZone.setPosition(
-      this.player.x + frente * (ATTACK_W / 2 + ATTACK_OFFSET),
-      this.player.y - PLAYER_HEIGHT / 2,
-    );
-    this.attackZone.body.reset(this.attackZone.x, this.attackZone.y);
+    const area = this.areaDoGolpe();
+    this.enemies.forEach((inimigo) => {
+      if (!inimigo.vivo || this.golpeConsumido.has(inimigo)) return;
+      if (Phaser.Geom.Intersects.RectangleToRectangle(area, inimigo.body.getBounds(
+        new Phaser.Geom.Rectangle(),
+      ))) {
+        this.atacarInimigo(inimigo);
+      }
+    });
   }
 
   // O golpe do jogador só conta UMA vez por ataque. Sem esta trava, o overlap
   // dispara a cada frame em que a animação está no ar e um único golpe mata
   // qualquer coisa.
   atacarInimigo(inimigo) {
-    if (!this.player.isAttacking || this.golpeConsumido.has(inimigo)) return;
+    if (this.golpeConsumido.has(inimigo)) return;
     this.golpeConsumido.add(inimigo);
     inimigo.levarDano(1);
     this.cameras.main.shake(70, 0.003);
@@ -209,6 +213,15 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   addWall(tileX, row, fundoRow, espelhado) {
     const x = tileX * TILE;
     const flip = espelhado ? -1 : 1;
+
+    // Grama e raízes transbordando sobre a quina. Sem isso o degrau termina
+    // numa vertical perfeita e lê como bloco colado sobre o cenário — o
+    // problema é a regularidade da silhueta, não a cor.
+    this.add
+      .image(espelhado ? x + TILE : x, row * TILE + GROUND_INSET, 'bosque_borda')
+      .setOrigin(espelhado ? 0 : 1, 0)
+      .setFlipX(espelhado)
+      .setDepth(-8);
     // Com origem em 0 e escala negativa, a imagem cresce para o lado errado;
     // deslocar um tile devolve a peça ao lugar.
     const dx = espelhado ? TILE : 0;
@@ -318,12 +331,10 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     });
 
     this.golpeConsumido = new Set();
-    this.buildAttackZone();
 
+    // Só o dano por CONTATO usa overlap de física. O golpe é resolvido à mão
+    // em resolverGolpe(), com caixa própria.
     this.enemies.forEach((inimigo) => {
-      // Dois testes separados, com caixas diferentes: a espada acerta pela
-      // zona de ataque, o dano por contato vem do corpo do jogador.
-      this.physics.add.overlap(this.attackZone, inimigo, () => this.atacarInimigo(inimigo));
       this.physics.add.overlap(this.player, inimigo, () => this.tocarInimigo(inimigo));
     });
 
@@ -332,10 +343,10 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
   /** Chamada pelas fases a cada frame, depois de updateCommon. */
   updateEnemies(time) {
-    this.updateAttackZone();
-
-    // Libera o próximo golpe só quando o ataque termina.
+    // Libera o próximo golpe só quando o ataque termina. Sem isso um único
+    // golpe acertaria a cada frame em que a animação está no ar.
     if (!this.player.isAttacking) this.golpeConsumido.clear();
+    this.resolverGolpe();
 
     this.enemies.forEach((inimigo) => inimigo.atualizar(this.player, time));
   }
