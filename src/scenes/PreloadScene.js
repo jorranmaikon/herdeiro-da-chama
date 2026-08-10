@@ -9,7 +9,7 @@ import { GAME_WIDTH, GAME_HEIGHT, PLAYER_CELL } from '../config/gameConfig.js';
 // continua mostrando arte velha mesmo depois do deploy. Foi o que aconteceu
 // com o Ancião: sprite e retrato novos no repositório, versão anterior na
 // tela.
-const ASSET_VERSION = 7;
+const ASSET_VERSION = 8;
 
 // Carrega todos os assets do jogo (08_ARQUITETURA_TECNICA.md, Seção 4).
 export default class PreloadScene extends Phaser.Scene {
@@ -46,6 +46,37 @@ export default class PreloadScene extends Phaser.Scene {
 
     ['bg_ceu', 'bg_colinas', 'bg_arvores'].forEach((k) =>
       this.load.image(k, this.url(`assets/bg/${k}.png`)),
+    );
+
+    // --- Bosque Esmeralda (Região 1) ---
+    //
+    // As chaves levam prefixo de bioma porque nomes como `plataforma_esq` já
+    // existem na Vila com arte diferente. Sem o prefixo, uma sobrescreveria a
+    // outra em silêncio e a Vila apareceria com a plataforma do Bosque.
+    [0, 1, 2].forEach((i) => {
+      this.load.image(`bosque_topo_${i}`, this.url(`assets/tiles/bosque/tile_topo_${i}.png`));
+      this.load.image(`bosque_fill_${i}`, this.url(`assets/tiles/bosque/tile_fill_${i}.png`));
+    });
+
+    this.load.image('bosque_canto', this.url('assets/tiles/bosque/tile_canto.png'));
+    this.load.image('bosque_lateral', this.url('assets/tiles/bosque/tile_lateral.png'));
+
+    [
+      ['bosque_plat_esq', 'plataforma_esq'],
+      ['bosque_plat_meio', 'plataforma_meio'],
+      ['bosque_plat_dir', 'plataforma_dir'],
+      ['bosque_oneway', 'plataforma_oneway'],
+      ['bosque_espinhos', 'espinhos'],
+    ].forEach(([chave, arquivo]) =>
+      this.load.image(chave, this.url(`assets/props/bosque/${arquivo}.png`)),
+    );
+
+    [
+      ['bosque_copa', 'bg_copa'],
+      ['bosque_floresta', 'bg_floresta'],
+      ['bosque_arvore', 'bg_arvore'],
+    ].forEach(([chave, arquivo]) =>
+      this.load.image(chave, this.url(`assets/bg/bosque/${arquivo}.png`)),
     );
 
     this.load.image('retrato_anciao', this.url('assets/npcs/retrato_anciao.png'));
