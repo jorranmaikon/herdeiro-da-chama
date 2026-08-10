@@ -98,9 +98,14 @@ export default class Fase1Scene extends VilaSceneBase {
     this.input$.lateUpdate();
   }
 
+  faseId() {
+    return 'vila_1';
+  }
+
   finishPhase() {
     if (this.finished) return;
     this.finished = true;
+    this.concluirFase();
     this.tutorial.destruir();
 
     this.cameras.main.fadeOut(700);

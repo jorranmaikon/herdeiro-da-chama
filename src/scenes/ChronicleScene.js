@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import save from '../managers/SaveManager.js';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
 import { CHRONICLES } from '../data/chronicles.js';
 
@@ -162,6 +163,7 @@ export default class ChronicleScene extends Phaser.Scene {
 
     this.cameras.main.fadeOut(900);
     this.cameras.main.once('camerafadeoutcomplete', () => {
+      save.verCronica(this.chronicleId);
       this.scene.start(this.proxima);
     });
   }

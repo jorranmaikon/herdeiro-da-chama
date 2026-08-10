@@ -54,12 +54,14 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
   /** Para onde esta fase leva ao chegar na saída. */
   proximaCena() {
-    return 'ContinenteScene';
+    // Volta ao mapa do bioma: é lá que o jogador vê a fase seguinte abrir.
+    return 'BosqueMapaScene';
   }
 
   finishPhase() {
     if (this.finished) return;
     this.finished = true;
+    this.concluirFase();
 
     this.cameras.main.fadeOut(700);
     this.cameras.main.once('camerafadeoutcomplete', () => this.leave());

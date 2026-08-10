@@ -4,6 +4,7 @@ import {
   GRAVITY, PLAYER_HEIGHT,
 } from '../../config/gameConfig.js';
 import Player from '../../entities/Player.js';
+import save from '../../managers/SaveManager.js';
 import InputManager from '../../managers/InputManager.js';
 
 // Base comum a TODAS as fases de TODOS os biomas.
@@ -134,6 +135,20 @@ export default class BiomeSceneBase extends Phaser.Scene {
 
     this.exitZone = this.add.zone(x, y - TILE * 1.5, 70, TILE * 3);
     this.physics.add.existing(this.exitZone, true);
+  }
+
+  /**
+   * Identificador desta fase no save (ver data/progressao.js). Uma fase sem id
+   * simplesmente não registra conclusão — é o caso de cenas de teste.
+   */
+  faseId() {
+    return null;
+  }
+
+  /** Registra a conclusão. Chamado ao alcançar a saída. */
+  concluirFase() {
+    const id = this.faseId();
+    if (id) save.concluirFase(id);
   }
 
   /** O que acontece ao alcançar a saída. Cada fase decide. */

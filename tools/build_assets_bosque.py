@@ -478,16 +478,22 @@ def _fatiar_inimigo(nome, cfg):
     folha = _rgba_croma(UPLOADS / SRC[cfg["chave"]], isolar=False)
     lado = folha.shape[0] // 4
 
-    # Apara a moldura de cada célula: 4% de cada lado cobre a espessura da
-    # linha com folga, sem encostar no desenho.
-    margem = round(lado * 0.04)
+    # Apara a moldura de cada célula.
+    #
+    # 2%, não 4%: com folga maior, o quadro alto do salto do Slime — que quase
+    # encosta no topo da sua célula — perdia o topo do corpo.
+    margem = round(lado * 0.02)
 
     recortes = []
     for linha in range(4):
         for coluna in range(4):
             cel = folha[linha * lado + margem:(linha + 1) * lado - margem,
                         coluna * lado + margem:(coluna + 1) * lado - margem]
-            cel = _aparar_contorno_escuro(cel)
+            # `_aparar_contorno_escuro` NÃO roda aqui, ao contrário do
+            # terreno. Ela descasca bordas escuras, e o Lobo é um animal
+            # escuro que encosta nas bordas da célula: o focinho e a ponta da
+            # cauda eram lidos como moldura e sumiam. Nos sprites a moldura já
+            # sai pela margem acima, e o resto pela mancha maior.
             cel = _so_maior_mancha(cel)
             op = cel[:, :, 3] > 0
             recortes.append(_recortar(cel) if op.any() else None)

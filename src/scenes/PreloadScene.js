@@ -9,7 +9,7 @@ import { GAME_WIDTH, GAME_HEIGHT, PLAYER_CELL } from '../config/gameConfig.js';
 // continua mostrando arte velha mesmo depois do deploy. Foi o que aconteceu
 // com o Ancião: sprite e retrato novos no repositório, versão anterior na
 // tela.
-const ASSET_VERSION = 16;
+const ASSET_VERSION = 17;
 
 // Carrega todos os assets do jogo (08_ARQUITETURA_TECNICA.md, Seção 4).
 export default class PreloadScene extends Phaser.Scene {
@@ -105,6 +105,7 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('capa_menu', this.url('assets/ui/capa_menu.png'));
     this.load.image('capa_menu_blur', this.url('assets/ui/capa_menu_blur.png'));
     this.load.image('mapa_continente', this.url('assets/ui/mapa_continente.png'));
+    this.load.image('mapa_bosque', this.url('assets/ui/mapa_bosque.png'));
     this.load.image('mapa_vila', this.url('assets/ui/mapa_vila.png'));
 
     // TODAS as trilhas entram aqui, e isso é deliberado apesar dos 13 MB.

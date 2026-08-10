@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { regiaoLiberada } from '../data/progressao.js';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
 
 // Mapa do Continente (06_INTERFACE_UX.md, Seção 2.1).
@@ -9,14 +10,8 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
 // A ordem segue a espiral do 02_CONTINENTE.md: da Vila, na borda, até o Vulcão,
 // no centro geográfico.
 const REGIOES = [
-  { id: 'vila', nome: 'Vila Inicial', x: 254, y: 594, liberada: true, destino: 'VilaMapaScene' },
-  // O Bosque entra direto na Fase 1, sem passar por um Mapa do Bioma.
-  //
-  // PENDÊNCIA: o 06_INTERFACE_UX.md (Seção 2.2) torna o Mapa do Bioma
-  // obrigatório em todo Vertical Slice. O do Bosque ainda não existe — falta a
-  // arte e faltam as outras três fases para haver o que mapear. Entrar direto
-  // é provisório e sai assim que as Fases 2 a 4 estiverem prontas.
-  { id: 'bosque', nome: 'Bosque Esmeralda', x: 177, y: 413, liberada: true, destino: 'BosqueFase1Scene' },
+  { id: 'vila', nome: 'Vila Inicial', x: 254, y: 594, destino: 'VilaMapaScene' },
+  { id: 'bosque', nome: 'Bosque Esmeralda', x: 177, y: 413, destino: 'BosqueMapaScene' },
   { id: 'floresta', nome: 'Floresta Sombria', x: 229, y: 204 },
   { id: 'montanhas', nome: 'Montanhas de Ferro', x: 414, y: 92 },
   { id: 'picos', nome: 'Picos Congelados', x: 1029, y: 138 },
@@ -67,7 +62,7 @@ export default class ContinenteScene extends Phaser.Scene {
   }
 
   marcador(regiao) {
-    const liberada = !!regiao.liberada;
+    const liberada = !!regiaoLiberada(regiao.id);
 
     // A arte do mapa traz o nome de TODAS as regiões escrito. Isso contraria o
     // 06_INTERFACE_UX.md (Seção 2.1): região não visitada mostra apenas a

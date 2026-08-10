@@ -17,8 +17,8 @@ export default class BosqueFase2Scene extends BosqueSceneBase {
     super('BosqueFase2Scene', L);
   }
 
-  proximaCena() {
-    // Fase 3 ainda não existe: por ora a fase devolve ao Mapa do Continente.
-    return 'ContinenteScene';
+  faseId() {
+    return 'bosque_2';
   }
+
 }
