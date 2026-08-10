@@ -110,6 +110,7 @@ export default class BosqueFase1Scene extends BosqueSceneBase {
   // --------------------------------------------------------------------
   update(time) {
     if (!this.updateCommon(time)) return;
+    this.updateEnemies(time);
     this.input$.lateUpdate();
   }
 

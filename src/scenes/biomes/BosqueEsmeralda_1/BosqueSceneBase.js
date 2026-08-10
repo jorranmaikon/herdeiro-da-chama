@@ -1,5 +1,7 @@
 import { GAME_HEIGHT, TILE, GROUND_INSET } from '../../../config/gameConfig.js';
 import BiomeSceneBase from '../BiomeSceneBase.js';
+import EnemyCommon from '../../../entities/enemies/EnemyCommon.js';
+import { SLIME } from '../../../data/enemiesConfig.js';
 
 // Recuo do topo de colisão da plataforma de pedra, acompanhando o musgo vazado
 // da arte — sem ele o personagem parece flutuar sobre a plataforma.
@@ -59,6 +61,49 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
     this.L.PLATFORMS.forEach((p) => this.addPlatform(p));
     this.buildHazards();
+    this.buildEnemies();
+  }
+
+  // --------------------------------------------------------------------
+  // Inimigos
+  // --------------------------------------------------------------------
+  // A patrulha de cada inimigo é limitada ao SEGMENTO de chão onde ele nasce.
+  // Sem isso ele anda até a borda e cai no vão — e um inimigo que se suicida
+  // sozinho estraga o encontro antes de o jogador chegar.
+  buildEnemies() {
+    this.enemies = (this.L.SLIMES || []).map((tileX) => {
+      const seg = this.segmentAt(tileX);
+      const y = this.groundTopAt(tileX);
+
+      const inimigo = new EnemyCommon(this, tileX * TILE, y, SLIME);
+      inimigo.setDepth(-1);
+
+      const margem = TILE * 0.75;
+      inimigo.patrulharEntre(
+        seg[0] * TILE + margem,
+        (seg[0] + seg[1]) * TILE - margem,
+      );
+
+      this.physics.add.collider(inimigo, this.solids);
+      return inimigo;
+    });
+  }
+
+  // O golpe do jogador só conta UMA vez por ataque. Sem esta trava, o overlap
+  // dispara a cada frame em que a animação está no ar e um único golpe mata
+  // qualquer coisa.
+  atacarInimigo(inimigo) {
+    if (!this.player.isAttacking || this.golpeConsumido.has(inimigo)) return;
+    this.golpeConsumido.add(inimigo);
+    inimigo.levarDano(1);
+    this.cameras.main.shake(70, 0.003);
+  }
+
+  tocarInimigo(inimigo) {
+    if (!inimigo.vivo || this.player.isDead || this.player.invulnerable) return;
+    // Padrão Contato: o dano vem do encostar, sem telegraph
+    // (04_BESTIARIO_MACRO.md, Seção 3).
+    this.player.hurt(this.player.x < inimigo.x ? -1 : 1);
   }
 
   // Alterna entre as 3 variações de tile. Com uma variação só, a mesma
@@ -233,6 +278,23 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     this.hazards.forEach((zone) => {
       this.physics.add.overlap(this.player, zone, () => this.hitHazard(zone));
     });
+
+    this.golpeConsumido = new Set();
+    this.enemies.forEach((inimigo) => {
+      this.physics.add.overlap(this.player, inimigo, () => {
+        if (this.player.isAttacking) this.atacarInimigo(inimigo);
+        else this.tocarInimigo(inimigo);
+      });
+    });
+
     this.afterBosquePlayerBuilt?.();
+  }
+
+  /** Chamada pelas fases a cada frame, depois de updateCommon. */
+  updateEnemies(time) {
+    // Libera o próximo golpe só quando o ataque termina.
+    if (!this.player.isAttacking) this.golpeConsumido.clear();
+
+    this.enemies.forEach((inimigo) => inimigo.atualizar(this.player, time));
   }
 }

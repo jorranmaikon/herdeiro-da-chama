@@ -71,6 +71,16 @@ export const HEALING_ITEMS = [
   [48, 4],
 ];
 
+// [tile]. Slimes — inimigo Comum, padrão Contato.
+//
+// Nenhum fica sobre um perigo de cenário nem na borda de um vão: a cena limita
+// a patrulha ao segmento de chão onde ele nasce, mas posicionar longe da borda
+// evita que ele passe a vida encostando na parede invisível.
+//
+// O primeiro (33) aparece só DEPOIS dos dois degraus. A fase ensina uma coisa
+// de cada vez: primeiro o terreno novo, depois a primeira ameaça do jogo.
+export const SLIMES = [33, 49, 68, 88];
+
 // Checkpoints: sempre no início de um trecho seguro, logo após um vão.
 export const CHECKPOINTS = [16, 64, 104];
 
