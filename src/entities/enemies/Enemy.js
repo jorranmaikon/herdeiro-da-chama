@@ -56,6 +56,10 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.minX = x;
     this.maxX = x;
 
+    // Inimigo voador não cai: a altura dele é decidida pelo comportamento, não
+    // pela gravidade.
+    if (cfg.locomocao === 'voar') this.body.setAllowGravity(false);
+
     this.criarAnimacoes(scene);
     this.tocar('idle');
   }
@@ -99,8 +103,15 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     const distancia = Math.abs(player.x - this.x);
     const percebeu = !player.isDead && distancia <= this.cfg.alcanceDeteccao;
 
-    if (percebeu && this.estado === ESTADO.IDLE) this.estado = ESTADO.ALERTA;
-    if (!percebeu && this.estado !== ESTADO.IDLE) this.estado = ESTADO.IDLE;
+    // Um ataque já iniciado vai até o fim. Sem esta guarda, o jogador cancelava
+    // o bote do Lobo apenas saindo do raio de detecção no meio do telegraph —
+    // o inimigo virava um bluff e o padrão deixava de ensinar qualquer coisa.
+    const ocupado = this.estado === ESTADO.ATACAR || this.estado === ESTADO.RECUPERAR;
+
+    if (!ocupado) {
+      if (percebeu && this.estado === ESTADO.IDLE) this.estado = ESTADO.ALERTA;
+      if (!percebeu && this.estado !== ESTADO.IDLE) this.estado = ESTADO.IDLE;
+    }
 
     if (this.estado === ESTADO.ALERTA) {
       // Alerta é uma pausa curta antes de agir: dá ao jogador o instante de
@@ -111,8 +122,9 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     if (this.estado === ESTADO.PERSEGUIR) this.direcao = player.x < this.x ? -1 : 1;
 
-    this.comportamento(time);
-    this.limitarPatrulha();
+    this.distanciaAoJogador = distancia;
+    this.comportamento(time, player);
+    if (this.cfg.locomocao !== 'voar') this.limitarPatrulha();
   }
 
   /** Comportamento próprio da categoria/inimigo. */
@@ -152,8 +164,15 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   morrer() {
     this.estado = ESTADO.MORTO;
-    this.setVelocity(0, 0);
-    this.body.enable = false;
+
+    // O corpo continua ATIVO e sujeito à gravidade. Desligá-lo congelava o
+    // inimigo exatamente onde ele estava — e como o Slime passa metade do
+    // tempo no ar, o cadáver ficava pendurado sobre o vão até sumir. Era isso
+    // que parecia "objeto flutuando" e também "demora para morrer": ele não
+    // estava vivo, estava travado no ar.
+    //
+    // Só a velocidade horizontal zera; a queda continua, e ele morre no chão.
+    this.setVelocityX(0);
 
     // A cena desfaz os vínculos AGORA, não ao fim da animação: entre a morte e
     // o último quadro passam vários frames, e nesse intervalo o inimigo já não

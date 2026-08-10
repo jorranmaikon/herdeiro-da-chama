@@ -50,3 +50,76 @@ export const SLIME = {
     morte: { quadros: [13, 14], taxa: 9 },
   },
 };
+
+// Lobo — Comum, padrão Golpe Telegrafado (04_BESTIARIO_MACRO.md, Seção 3).
+//
+// O primeiro telegraph do jogo. O Slime ensinou que encostar dói; o Lobo
+// ensina a LER a antecipação e a explorar a janela de recuperação depois do
+// ataque. Por isso ele para completamente durante o telegraph: um inimigo que
+// telegrafa andando não telegrafa nada.
+export const LOBO = {
+  textura: 'lobo_bosque',
+  celula: 192,
+
+  corpoW: 124,
+  corpoH: 68,
+
+  vida: 3,
+  dano: 1,          // teto de um Comum, mesmo sendo mais ameaçador que o Slime
+
+  locomocao: 'andar',
+  velocidadePatrulha: 55,
+  velocidade: 130,        // perseguindo
+  velocidadeBote: 420,    // o bote em si
+  alcanceDeteccao: 340,
+  alcanceBote: 170,
+  telegrafoMs: 620,       // tempo parado, recuado, antes de avançar
+  recuperacaoMs: 780,     // a abertura do jogador
+  esperaAlertaMs: 200,
+  knockback: 200,
+
+  animacoes: {
+    idle:     { quadros: [0, 1, 2, 3], taxa: 5, repetir: -1 },
+    correr:   { quadros: [4, 5, 6, 7], taxa: 11, repetir: -1 },
+    preparar: { quadros: [9, 10], taxa: 5, repetir: -1 },
+    bote:     { quadros: [11], taxa: 1 },
+    dano:     { quadros: [12, 13], taxa: 10 },
+    morte:    { quadros: [14, 15], taxa: 7 },
+  },
+};
+
+// Morcego — Comum, padrão Contato.
+//
+// Primeira ameaça AÉREA do jogo. Existe para dar função aos caminhos altos:
+// com ele em cena, subir deixa de ser só atalho e passa a ter custo.
+//
+// Dorme pendurado até perceber o jogador. Esse estado inicial não é enfeite —
+// é a chance de vê-lo antes de ser atacado, que o Bestiário exige.
+export const MORCEGO = {
+  textura: 'morcego_bosque',
+  celula: 128,
+
+  corpoW: 72,
+  corpoH: 54,
+
+  vida: 1,          // frágil: a dificuldade dele é a posição, não a resistência
+  dano: 1,
+
+  locomocao: 'voar',
+  velocidade: 120,
+  alcanceDeteccao: 300,
+  alturaAcimaDoAlvo: 90,   // persegue um pouco acima do jogador
+  amplitudeOnda: 40,
+  periodoOndaMs: 260,
+  esperaAlertaMs: 220,
+  knockback: 160,
+
+  animacoes: {
+    pendurado: { quadros: [0, 1, 2, 3], taxa: 3, repetir: -1 },
+    idle:      { quadros: [0, 1, 2, 3], taxa: 3, repetir: -1 },
+    despertar: { quadros: [4, 5, 6, 7], taxa: 10 },
+    voar:      { quadros: [8, 9, 10, 11], taxa: 12, repetir: -1 },
+    dano:      { quadros: [13], taxa: 8 },
+    morte:     { quadros: [14, 15], taxa: 7 },
+  },
+};

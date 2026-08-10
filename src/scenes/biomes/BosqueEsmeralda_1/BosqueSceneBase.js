@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, TILE, GROUND_INSET } from '../../../config/gameConfig.js';
 import BiomeSceneBase from '../BiomeSceneBase.js';
 import EnemyCommon from '../../../entities/enemies/EnemyCommon.js';
-import { SLIME } from '../../../data/enemiesConfig.js';
+import { SLIME, LOBO, MORCEGO } from '../../../data/enemiesConfig.js';
 
 // Alcance da espada. Largura generosa de propósito: a regra do
 // 03_GAMEPLAY_MACRO.md é hurtbox pequena e alcance folgado — o jogo pune
@@ -118,11 +118,24 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   // Sem isso ele anda até a borda e cai no vão — e um inimigo que se suicida
   // sozinho estraga o encontro antes de o jogador chegar.
   buildEnemies() {
-    this.enemies = (this.L.SLIMES || []).map((tileX) => {
-      const seg = this.segmentAt(tileX);
-      const y = this.groundTopAt(tileX);
+    // Cada lista do layout aponta para uma configuração. Inimigo novo é uma
+    // entrada aqui, nunca uma classe nova (08_ARQUITETURA_TECNICA.md, Seção 8).
+    const listas = [
+      [this.L.SLIMES, SLIME, 0],
+      [this.L.LOBOS, LOBO, 0],
+      // O Morcego começa pendurado, bem acima do chão.
+      [this.L.MORCEGOS, MORCEGO, -TILE * 3],
+    ];
 
-      const inimigo = new EnemyCommon(this, tileX * TILE, y, SLIME);
+    this.enemies = listas.flatMap(([tiles, cfg, alturaInicial]) =>
+      (tiles || []).map((tileX) => this.criarInimigo(tileX, cfg, alturaInicial)));
+  }
+
+  criarInimigo(tileX, cfg, alturaInicial = 0) {
+      const seg = this.segmentAt(tileX);
+      const y = this.groundTopAt(tileX) + alturaInicial;
+
+      const inimigo = new EnemyCommon(this, tileX * TILE, y, cfg);
       inimigo.setDepth(-1);
 
       const margem = TILE * 0.75;
@@ -133,10 +146,12 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
       // Os colisores são guardados no próprio inimigo para poderem ser
       // destruídos junto com ele. Ver aoMorrer(), abaixo.
-      inimigo.colisores = [this.physics.add.collider(inimigo, this.solids)];
+      // O colisor com o chão fica separado: ele é o ÚNICO que sobrevive à
+      // morte, para o cadáver cair e pousar em vez de congelar no ar.
+      inimigo.colisorChao = this.physics.add.collider(inimigo, this.solids);
+      inimigo.colisores = [];
       inimigo.aoMorrer = () => this.removerInimigo(inimigo);
       return inimigo;
-    });
   }
 
   // Hitbox do ataque: um retângulo curto À FRENTE do jogador
@@ -195,12 +210,18 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   // resolvido — o sintoma é matar o primeiro inimigo e nunca mais acertar
   // nada. O Phaser não limpa esses colisores sozinho.
   removerInimigo(inimigo) {
+    // Some da lógica na hora: nada de golpe, contato ou update depois da
+    // morte. O colisor com o chão continua até o destroy.
     inimigo.colisores?.forEach((c) => this.physics.world.removeCollider(c));
     inimigo.colisores = null;
     this.golpeConsumido.delete(inimigo);
 
     const i = this.enemies.indexOf(inimigo);
     if (i !== -1) this.enemies.splice(i, 1);
+
+    inimigo.once('destroy', () => {
+      if (inimigo.colisorChao) this.physics.world.removeCollider(inimigo.colisorChao);
+    });
   }
 
   // O golpe do jogador só conta UMA vez por ataque. Sem esta trava, o overlap

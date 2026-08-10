@@ -54,6 +54,8 @@ SRC = {
     "bg_floresta": "196ec52d5f0e3af9ea35bd6d2ecdcfc60ec6b90c.png",
     "bg_arvore":   "0DF6980D-F490-4128-A075-CABEBF13851F.png",
     "slime":       "davinci_especifica__o_t_cnica__folha_de_sprite_de_pixel_ar.png",
+    "lobo":        "84c4fc713fd114938d2564e7e3fedcdfaeaae967.png",
+    "morcego":     "96f37403eecd6bcab50476d9ffb7fefad4db385f.png",
 }
 
 # Alturas de exibição, em px de tela.
@@ -424,13 +426,25 @@ def build_parallax():
 # ----------------------------------------------------------------------
 # Inimigos
 # ----------------------------------------------------------------------
-SLIME_CELULA = 128       # célula final, em px de tela
-SLIME_ALTURA_MAX = 104   # altura do maior quadro dentro da célula
-SLIME_BASE = 122         # linha em que o corpo se apoia
+# [célula final em px, altura do maior quadro, âncora]
+#
+# "chao" apoia o quadro numa linha de base; "centro" centraliza verticalmente.
+# Um inimigo voador não tem pé: ancorá-lo pela base o faria subir e descer
+# conforme a envergadura da asa muda de quadro para quadro.
+INIMIGOS = {
+    "slime":   {"chave": "slime", "celula": 128, "alt": 104, "ancora": "chao"},
+    "lobo":    {"chave": "lobo", "celula": 192, "alt": 116, "ancora": "chao"},
+    "morcego": {"chave": "morcego", "celula": 128, "alt": 104, "ancora": "centro"},
+}
 
 
-def build_slime():
-    """Fatia a folha 4x4 do Slime e normaliza os quadros.
+def build_inimigos():
+    for nome, cfg in INIMIGOS.items():
+        _fatiar_inimigo(nome, cfg)
+
+
+def _fatiar_inimigo(nome, cfg):
+    """Fatia uma folha 4x4 de inimigo e normaliza os quadros.
 
     Dois cuidados que a folha crua não tem:
 
@@ -441,7 +455,7 @@ def build_slime():
        própria altura faria o Slime crescer e encolher durante a animação, e
        ancorar pelo centro o faria flutuar.
     """
-    folha = _rgba_croma(UPLOADS / SRC["slime"], isolar=False)
+    folha = _rgba_croma(UPLOADS / SRC[cfg["chave"]], isolar=False)
     lado = folha.shape[0] // 4
 
     # Apara a moldura de cada célula: 4% de cada lado cobre a espessura da
@@ -458,12 +472,12 @@ def build_slime():
             recortes.append(_recortar(cel) if op.any() else None)
 
     altura_maxima = max(r.shape[0] for r in recortes if r is not None)
-    escala = SLIME_ALTURA_MAX / altura_maxima
+    escala = cfg["alt"] / altura_maxima
+    celula = cfg["celula"]
 
     destino = OUT / "sprites" / BIOMA
     destino.mkdir(parents=True, exist_ok=True)
-    folha_final = Image.new("RGBA", (SLIME_CELULA * 4, SLIME_CELULA * 4),
-                            (0, 0, 0, 0))
+    folha_final = Image.new("RGBA", (celula * 4, celula * 4), (0, 0, 0, 0))
 
     for i, recorte in enumerate(recortes):
         if recorte is None:
@@ -471,14 +485,14 @@ def build_slime():
         h = max(1, round(recorte.shape[0] * escala))
         w = max(1, round(recorte.shape[1] * escala))
         im = Image.fromarray(recorte, "RGBA").resize((w, h), Image.LANCZOS)
+        topo = (celula - 6 - h) if cfg["ancora"] == "chao" else (celula - h) // 2
         folha_final.alpha_composite(
             im,
-            ((i % 4) * SLIME_CELULA + (SLIME_CELULA - w) // 2,
-             (i // 4) * SLIME_CELULA + SLIME_BASE - h),
+            ((i % 4) * celula + (celula - w) // 2, (i // 4) * celula + topo),
         )
 
-    folha_final.save(destino / "slime.png")
-    print(f"  slime: 4x4 células de {SLIME_CELULA}px")
+    folha_final.save(destino / f"{nome}.png")
+    print(f"  {nome}: 4x4 células de {celula}px")
 
 
 if __name__ == "__main__":
@@ -486,5 +500,5 @@ if __name__ == "__main__":
     build_terreno()
     build_plataformas()
     build_parallax()
-    build_slime()
+    build_inimigos()
     print("Pronto.")

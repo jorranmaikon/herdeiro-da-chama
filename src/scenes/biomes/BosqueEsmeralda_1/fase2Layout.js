@@ -115,6 +115,15 @@ export const SLIMES = [
   152, 165, 174, 188, 200,
 ];
 
+// Lobos: sempre em trecho plano e com espaço à frente. O bote cobre muita
+// distância, e num trecho curto ele terminaria dentro de uma parede antes de o
+// jogador ter tempo de ler o telegraph.
+export const LOBOS = [40, 67, 92, 143, 166, 195];
+
+// Morcegos: sobre os trechos de subida, onde o jogador está comprometido com
+// um pulo e não pode simplesmente recuar. É o que dá custo ao caminho alto.
+export const MORCEGOS = [50, 58, 88, 118, 128, 145, 170, 191];
+
 export const CHECKPOINTS = [14, 61, 101, 136, 185];
 
 // Passagem baixa, visível ao lado do caminho principal e intransponível a pé.

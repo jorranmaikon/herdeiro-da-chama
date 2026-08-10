@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import Enemy, { ESTADO } from './Enemy.js';
 
 // Inimigo Comum (04_BESTIARIO_MACRO.md, Seção 1).
@@ -11,7 +12,18 @@ import Enemy, { ESTADO } from './Enemy.js';
 // (o Lobo, na Fase 2), ele vira outra opção de `locomocao` na configuração de
 // dados, não outra classe.
 export default class EnemyCommon extends Enemy {
-  comportamento(time) {
+  comportamento(time, player) {
+    switch (this.cfg.locomocao) {
+      case 'andar': return this.andar(time);
+      case 'voar': return this.voar(time, player);
+      default: return this.saltar(time);
+    }
+  }
+
+  // --------------------------------------------------------------------
+  // Locomoção por saltos (Slime)
+  // --------------------------------------------------------------------
+  saltar(time) {
     if (this.estado === ESTADO.RECUPERAR) return;
 
     const noChao = this.body.blocked.down || this.body.touching.down;
@@ -27,6 +39,85 @@ export default class EnemyCommon extends Enemy {
     }
 
     this.pular(time);
+  }
+
+  // --------------------------------------------------------------------
+  // Locomoção a pé, com Golpe Telegrafado (Lobo)
+  // --------------------------------------------------------------------
+  // O padrão inteiro do 04_BESTIARIO_MACRO.md, Seção 2, aparece aqui:
+  // persegue → prepara (telegraph visível) → ataca → recupera. A janela de
+  // recuperação é a abertura que o jogador precisa aprender a explorar.
+  andar(time) {
+    if (this.estado === ESTADO.RECUPERAR) {
+      this.setVelocityX(0);
+      if (time >= this.proximaAcaoEm) this.estado = ESTADO.IDLE;
+      return;
+    }
+
+    if (this.estado === ESTADO.ATACAR) {
+      // Durante o telegraph ele fica PARADO e recuado. Parar é o que torna a
+      // antecipação legível — um inimigo que telegrafa andando não telegrafa.
+      if (time < this.proximaAcaoEm) {
+        this.setVelocityX(0);
+        return;
+      }
+      this.setVelocityX(this.direcao * this.cfg.velocidadeBote);
+      this.tocar('bote', true);
+      this.estado = ESTADO.RECUPERAR;
+      this.proximaAcaoEm = time + this.cfg.recuperacaoMs;
+      return;
+    }
+
+    if (this.estado === ESTADO.PERSEGUIR) {
+      if (this.distanciaAoJogador <= this.cfg.alcanceBote) {
+        this.estado = ESTADO.ATACAR;
+        this.proximaAcaoEm = time + this.cfg.telegrafoMs;
+        this.setVelocityX(0);
+        this.setFlipX(this.direcao < 0);
+        this.tocar('preparar', true);
+        return;
+      }
+      this.setVelocityX(this.direcao * this.cfg.velocidade);
+      this.setFlipX(this.direcao < 0);
+      this.tocar('correr');
+      return;
+    }
+
+    // Patrulha: vai e volta devagar dentro do próprio trecho.
+    this.setVelocityX(this.direcao * this.cfg.velocidadePatrulha);
+    this.setFlipX(this.direcao < 0);
+    this.tocar('correr');
+  }
+
+  // --------------------------------------------------------------------
+  // Voo (Morcego)
+  // --------------------------------------------------------------------
+  voar(time, player) {
+    if (this.estado === ESTADO.RECUPERAR) return;
+
+    if (this.estado === ESTADO.IDLE) {
+      // Dorme pendurado até perceber o jogador — o estado inicial dá ao
+      // jogador a chance de vê-lo antes de ser atacado.
+      this.setVelocity(0, 0);
+      this.tocar('pendurado');
+      return;
+    }
+
+    this.direcao = player.x < this.x ? -1 : 1;
+    this.setFlipX(this.direcao < 0);
+
+    // Persegue em diagonal, com uma oscilação vertical que impede a
+    // trajetória de virar uma linha reta previsível.
+    const onda = Math.sin(time / this.cfg.periodoOndaMs) * this.cfg.amplitudeOnda;
+    const alvoY = player.y - this.cfg.alturaAcimaDoAlvo + onda;
+
+    this.setVelocityX(this.direcao * this.cfg.velocidade);
+    this.setVelocityY(Phaser.Math.Clamp(
+      (alvoY - this.y) * 3,
+      -this.cfg.velocidade,
+      this.cfg.velocidade,
+    ));
+    this.tocar('voar');
   }
 
   pular(time) {

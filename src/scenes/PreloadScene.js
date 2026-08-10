@@ -9,7 +9,7 @@ import { GAME_WIDTH, GAME_HEIGHT, PLAYER_CELL } from '../config/gameConfig.js';
 // continua mostrando arte velha mesmo depois do deploy. Foi o que aconteceu
 // com o Ancião: sprite e retrato novos no repositório, versão anterior na
 // tela.
-const ASSET_VERSION = 14;
+const ASSET_VERSION = 15;
 
 // Carrega todos os assets do jogo (08_ARQUITETURA_TECNICA.md, Seção 4).
 export default class PreloadScene extends Phaser.Scene {
@@ -72,10 +72,16 @@ export default class PreloadScene extends Phaser.Scene {
       this.load.image(chave, this.url(`assets/props/bosque/${arquivo}.png`)),
     );
 
-    this.load.spritesheet('slime_bosque', this.url('assets/sprites/bosque/slime.png'), {
-      frameWidth: 128,
-      frameHeight: 128,
-    });
+    [
+      ['slime_bosque', 'slime', 128],
+      ['lobo_bosque', 'lobo', 192],
+      ['morcego_bosque', 'morcego', 128],
+    ].forEach(([chave, arquivo, celula]) =>
+      this.load.spritesheet(chave, this.url(`assets/sprites/bosque/${arquivo}.png`), {
+        frameWidth: celula,
+        frameHeight: celula,
+      }),
+    );
 
     [
       ['bosque_copa', 'bg_copa'],
