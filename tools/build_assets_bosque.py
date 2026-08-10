@@ -226,10 +226,52 @@ def _tile_64(celula, opaco=False):
     dx = max(1, round(sub.shape[1] * CELL_INSET))
     sub = sub[(dy if opaco else 0):sub.shape[0] - dy, dx:sub.shape[1] - dx]
 
-    if opaco or celula is not None:
-        sub = _aparar_colunas_vazadas(sub)
+    sub = _aparar_contorno_escuro(sub)
+    sub = _aparar_colunas_vazadas(sub)
     im = Image.fromarray(sub, "RGBA").resize((TILE, TILE), Image.LANCZOS)
     return np.array(im)
+
+
+def _aparar_contorno_escuro(sub, max_tiras=14):
+    """Descasca as bordas escuras que sobraram da caixa da folha.
+
+    O gerador desenha cada célula como uma caixa com contorno. O recorte por
+    porcentagem (CELL_INSET) tira a maior parte, mas a espessura do contorno
+    varia de célula para célula — e o que sobra vira um risco preto na quina de
+    cada degrau, denunciando que o tile foi recortado.
+
+    Aqui a borda é medida em vez de estimada: uma tira de 1px é descartada
+    enquanto for sensivelmente mais escura que o miolo da peça.
+    """
+    def luz(faixa_px):
+        opaco = faixa_px[:, :, 3] > 0
+        if not opaco.any():
+            return None
+        return faixa_px[:, :, :3][opaco].mean()
+
+    miolo = sub[sub.shape[0] // 4: -sub.shape[0] // 4,
+                sub.shape[1] // 4: -sub.shape[1] // 4]
+    ref = luz(miolo)
+    if ref is None:
+        return sub
+
+    limite = ref * 0.72
+    for _ in range(max_tiras):
+        cortou = False
+        # O topo fica de fora: nas peças de superfície ele é a grama, que é
+        # legitimamente mais escura na base das folhas.
+        for lado in ('baixo', 'esq', 'dir'):
+            if sub.shape[0] < 8 or sub.shape[1] < 8:
+                break
+            tira = {'baixo': sub[-1:, :], 'esq': sub[:, :1], 'dir': sub[:, -1:]}[lado]
+            valor = luz(tira)
+            if valor is not None and valor < limite:
+                sub = {'baixo': sub[:-1, :], 'esq': sub[:, 1:],
+                       'dir': sub[:, :-1]}[lado]
+                cortou = True
+        if not cortou:
+            break
+    return sub
 
 
 def _aparar_colunas_vazadas(sub, faixa=0.4):

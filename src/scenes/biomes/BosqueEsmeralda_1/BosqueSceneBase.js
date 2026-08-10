@@ -1,7 +1,16 @@
-import { GAME_HEIGHT, TILE, GROUND_INSET } from '../../../config/gameConfig.js';
+import {
+  GAME_HEIGHT, TILE, GROUND_INSET, PLAYER_HEIGHT,
+} from '../../../config/gameConfig.js';
 import BiomeSceneBase from '../BiomeSceneBase.js';
 import EnemyCommon from '../../../entities/enemies/EnemyCommon.js';
 import { SLIME } from '../../../data/enemiesConfig.js';
+
+// Alcance da espada. Largura generosa de propósito: a regra do
+// 03_GAMEPLAY_MACRO.md é hurtbox pequena e alcance folgado — o jogo pune
+// leitura ruim, nunca mira imprecisa.
+const ATTACK_W = 84;
+const ATTACK_H = 96;
+const ATTACK_OFFSET = 10;
 
 // Recuo do topo de colisão da plataforma de pedra, acompanhando o musgo vazado
 // da arte — sem ele o personagem parece flutuar sobre a plataforma.
@@ -87,6 +96,35 @@ export default class BosqueSceneBase extends BiomeSceneBase {
       this.physics.add.collider(inimigo, this.solids);
       return inimigo;
     });
+  }
+
+  // Hitbox do ataque: uma caixa curta À FRENTE do jogador
+  // (03_GAMEPLAY_MACRO.md, Seção 3), não o corpo dele.
+  //
+  // Antes o acerto era testado com o próprio corpo do jogador contra o do
+  // inimigo, o que obrigava a praticamente entrar dentro do Slime para
+  // acertar. A espada alcança bem além do sprite, e a hitbox precisa
+  // acompanhar isso.
+  buildAttackZone() {
+    this.attackZone = this.add.zone(0, 0, ATTACK_W, ATTACK_H);
+    this.physics.add.existing(this.attackZone);
+    this.attackZone.body.setAllowGravity(false);
+    this.attackZone.body.enable = false;
+  }
+
+  // Segue o jogador enquanto o ataque dura e some no resto do tempo. Ligar e
+  // desligar o corpo é mais barato que criar e destruir a zona a cada golpe.
+  updateAttackZone() {
+    const ativo = this.player.isAttacking && !this.player.isDead;
+    this.attackZone.body.enable = ativo;
+    if (!ativo) return;
+
+    const frente = this.player.flipX ? -1 : 1;
+    this.attackZone.setPosition(
+      this.player.x + frente * (ATTACK_W / 2 + ATTACK_OFFSET),
+      this.player.y - PLAYER_HEIGHT / 2,
+    );
+    this.attackZone.body.reset(this.attackZone.x, this.attackZone.y);
   }
 
   // O golpe do jogador só conta UMA vez por ataque. Sem esta trava, o overlap
@@ -280,11 +318,13 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     });
 
     this.golpeConsumido = new Set();
+    this.buildAttackZone();
+
     this.enemies.forEach((inimigo) => {
-      this.physics.add.overlap(this.player, inimigo, () => {
-        if (this.player.isAttacking) this.atacarInimigo(inimigo);
-        else this.tocarInimigo(inimigo);
-      });
+      // Dois testes separados, com caixas diferentes: a espada acerta pela
+      // zona de ataque, o dano por contato vem do corpo do jogador.
+      this.physics.add.overlap(this.attackZone, inimigo, () => this.atacarInimigo(inimigo));
+      this.physics.add.overlap(this.player, inimigo, () => this.tocarInimigo(inimigo));
     });
 
     this.afterBosquePlayerBuilt?.();
@@ -292,6 +332,8 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
   /** Chamada pelas fases a cada frame, depois de updateCommon. */
   updateEnemies(time) {
+    this.updateAttackZone();
+
     // Libera o próximo golpe só quando o ataque termina.
     if (!this.player.isAttacking) this.golpeConsumido.clear();
 

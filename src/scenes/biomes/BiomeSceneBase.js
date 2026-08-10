@@ -187,6 +187,12 @@ export default class BiomeSceneBase extends Phaser.Scene {
     this.physics.world.gravity.y = GRAVITY;
     this.physics.world.setBounds(0, 0, this.worldWidth, GAME_HEIGHT * 2);
 
+    // Sem parede no TOPO: bater a cabeça num teto invisível é pior que sair
+    // de quadro por cima. Num plataforma 2D o alto da tela não é um limite
+    // físico, é só o fim do enquadramento — a câmera continua presa, então o
+    // jogador some por um instante e volta ao cair.
+    this.physics.world.setBoundsCollision(true, true, false, true);
+
     this.player = new Player(
       this,
       this.L.SPAWN_TILE * TILE,
