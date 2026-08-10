@@ -133,16 +133,24 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
   criarInimigo(tileX, cfg, alturaInicial = 0) {
       const seg = this.segmentAt(tileX);
-      const y = this.groundTopAt(tileX) + alturaInicial;
+
+      // Um voador pode nascer sobre um vão — é justamente onde ele é mais
+      // ameaçador. Sem segmento embaixo, a altura vem da linha base do bioma.
+      const y = (seg ? this.groundTopAt(tileX) : this.L.GROUND_ROW * TILE)
+        + alturaInicial;
 
       const inimigo = new EnemyCommon(this, tileX * TILE, y, cfg);
       inimigo.setDepth(-1);
 
-      const margem = TILE * 0.75;
-      inimigo.patrulharEntre(
-        seg[0] * TILE + margem,
-        (seg[0] + seg[1]) * TILE - margem,
-      );
+      // Patrulha só faz sentido para quem anda no chão: é o que impede o
+      // inimigo de andar até a borda e cair sozinho. Voador não tem borda.
+      if (seg && cfg.locomocao !== 'voar') {
+        const margem = TILE * 0.75;
+        inimigo.patrulharEntre(
+          seg[0] * TILE + margem,
+          (seg[0] + seg[1]) * TILE - margem,
+        );
+      }
 
       // Os colisores são guardados no próprio inimigo para poderem ser
       // destruídos junto com ele. Ver aoMorrer(), abaixo.
