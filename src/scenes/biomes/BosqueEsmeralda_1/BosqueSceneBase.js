@@ -1,7 +1,5 @@
 import Phaser from 'phaser';
-import {
-  GAME_HEIGHT, TILE, GROUND_INSET, PLAYER_HEIGHT,
-} from '../../../config/gameConfig.js';
+import { GAME_HEIGHT, TILE, GROUND_INSET } from '../../../config/gameConfig.js';
 import BiomeSceneBase from '../BiomeSceneBase.js';
 import EnemyCommon from '../../../entities/enemies/EnemyCommon.js';
 import { SLIME } from '../../../data/enemiesConfig.js';
@@ -10,7 +8,7 @@ import { SLIME } from '../../../data/enemiesConfig.js';
 // 03_GAMEPLAY_MACRO.md é hurtbox pequena e alcance folgado — o jogo pune
 // leitura ruim, nunca mira imprecisa.
 const ATTACK_W = 84;
-const ATTACK_H = 110;
+const ATTACK_ABAIXO = 40;  // quanto o golpe desce além dos pés
 const ATTACK_OFFSET = 10;
 
 // Recuo do topo de colisão da plataforma de pedra, acompanhando o musgo vazado
@@ -108,12 +106,29 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   // frequência. Um teste de retângulos no update é determinístico, roda no
   // frame exato do golpe e é mais simples de ler.
   areaDoGolpe() {
+    // Ancorada no CORPO do jogador, nunca em `player.y`.
+    //
+    // O sprite do protagonista usa a origem padrão do Phaser, (0.5, 0.5), e
+    // não (0.5, 1) como os inimigos: `player.y` é o centro da célula de
+    // 160px, não os pés. Calcular a caixa a partir de `y` e PLAYER_HEIGHT
+    // colocava o golpe flutuando acima do corpo, e ele não acertava nada a
+    // distância nenhuma. Ler o corpo direto vale para qualquer origem.
+    const corpo = this.player.body;
     const frente = this.player.flipX ? -1 : 1;
+    const x = frente > 0
+      ? corpo.right + ATTACK_OFFSET
+      : corpo.left - ATTACK_OFFSET - ATTACK_W;
+
+    // Vertical: do topo do corpo até um pouco ABAIXO dos pés. Centrar a caixa
+    // no meio do corpo deixava só uns 20px de sobreposição com um inimigo
+    // baixo como o Slime, e bastava um pulinho para o golpe passar por cima.
+    // Descer até abaixo dos pés garante que qualquer coisa no chão à frente
+    // esteja no alcance.
     return new Phaser.Geom.Rectangle(
-      this.player.x + (frente > 0 ? ATTACK_OFFSET : -ATTACK_OFFSET - ATTACK_W),
-      this.player.y - PLAYER_HEIGHT * 0.9,
+      x,
+      corpo.top,
       ATTACK_W,
-      ATTACK_H,
+      corpo.height + ATTACK_ABAIXO,
     );
   }
 
@@ -122,10 +137,11 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
     const area = this.areaDoGolpe();
     this.enemies.forEach((inimigo) => {
-      if (!inimigo.vivo || this.golpeConsumido.has(inimigo)) return;
-      if (Phaser.Geom.Intersects.RectangleToRectangle(area, inimigo.body.getBounds(
-        new Phaser.Geom.Rectangle(),
-      ))) {
+      if (!inimigo.vivo || !inimigo.body || this.golpeConsumido.has(inimigo)) return;
+
+      const c = inimigo.body;
+      const alvo = new Phaser.Geom.Rectangle(c.left, c.top, c.width, c.height);
+      if (Phaser.Geom.Intersects.RectangleToRectangle(area, alvo)) {
         this.atacarInimigo(inimigo);
       }
     });
