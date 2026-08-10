@@ -58,6 +58,7 @@ export default class ContinenteScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(10);
 
+    this.botaoVoltar();
     this.cameras.main.fadeIn(600);
   }
 
@@ -136,6 +137,35 @@ export default class ContinenteScene extends Phaser.Scene {
       this.cameras.main.once('camerafadeoutcomplete', () =>
         this.scene.start(regiao.destino, { origem: regiao }),
       );
+    });
+  }
+
+  // Saída para o menu. Sem ela, o Mapa do Continente também seria um beco sem
+  // saída no celular.
+  botaoVoltar() {
+    const x = 100;
+    const y = GAME_HEIGHT - 46;
+
+    const botao = this.add
+      .rectangle(x, y, 150, 44, 0x1a2418, 0.85)
+      .setStrokeStyle(2, 0x55603f)
+      .setDepth(20)
+      .setInteractive({ useHandCursor: true });
+
+    this.add
+      .text(x, y, '< Menu', {
+        fontFamily: 'monospace',
+        fontSize: '17px',
+        color: '#ffe9b0',
+      })
+      .setOrigin(0.5)
+      .setDepth(21);
+
+    botao.on('pointerdown', () => {
+      if (this.entrando) return;
+      this.entrando = true;
+      this.cameras.main.fadeOut(300);
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('MenuScene'));
     });
   }
 }

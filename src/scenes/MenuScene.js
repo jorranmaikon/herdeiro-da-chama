@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
-import save from '../managers/SaveManager.js';
 
 // Tela inicial (06_INTERFACE_UX.md, Seção 6).
 // A arte de capa já traz os botões desenhados; aqui só posicionamos áreas
@@ -20,8 +19,8 @@ export default class MenuScene extends Phaser.Scene {
 
     // Coordenadas dos botões desenhados na capa, convertidas da resolução da
     // arte (1024x572) para o canvas.
-    this.hotspot(646, 344, 330, 40, () => this.novoJogo());
-    this.hotspot(646, 384, 330, 40, () => this.continuar());
+    this.hotspot(646, 344, 330, 40, () => this.abrirPerfis());
+    this.hotspot(646, 384, 330, 40, () => this.abrirPerfis());
     this.hotspot(646, 424, 330, 40, () => this.notice('Bestiário ainda não implementado'));
 
     this.noticeText = this.add
@@ -32,10 +31,8 @@ export default class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    // Enter/Espaço fazem o mais provável: continuar, se houver progresso.
-    const acaoPadrao = () => (save.temProgresso() ? this.continuar() : this.novoJogo());
-    this.input.keyboard.on('keydown-ENTER', acaoPadrao);
-    this.input.keyboard.on('keydown-SPACE', acaoPadrao);
+    this.input.keyboard.on('keydown-ENTER', () => this.abrirPerfis());
+    this.input.keyboard.on('keydown-SPACE', () => this.abrirPerfis());
 
     this.cameras.main.fadeIn(500);
   }
@@ -55,30 +52,10 @@ export default class MenuScene extends Phaser.Scene {
     this.time.delayedCall(1800, () => this.noticeText.setText(''));
   }
 
-  // Novo jogo apaga o save e abre pela Crônica de Abertura, antes de qualquer
-  // gameplay (VS_0_VILA_INICIAL.md, Seção 2).
-  novoJogo() {
-    if (save.temProgresso() && !this.confirmandoNovoJogo) {
-      // Sobrescrever progresso sem aviso seria perda irreversível — o save é
-      // slot único (06_INTERFACE_UX.md, Seção 7).
-      this.confirmandoNovoJogo = true;
-      this.notice('Isso apaga seu progresso. Toque de novo para confirmar.');
-      this.time.delayedCall(3000, () => { this.confirmandoNovoJogo = false; });
-      return;
-    }
-
-    save.apagar();
-    this.irPara('ChronicleScene', { id: 'cronica_vila_01' });
-  }
-
-  // Continuar pula a Crônica de Abertura e devolve o jogador ao Mapa do
-  // Continente, de onde ele escolhe a região.
-  continuar() {
-    if (!save.temProgresso()) {
-      this.notice('Nenhum jogo salvo ainda');
-      return;
-    }
-    this.irPara('ContinenteScene');
+  // Ambos os botões levam à seleção de perfil: com cinco perfis no mesmo
+  // dispositivo, escolher QUEM está jogando vem antes de escolher o quê.
+  abrirPerfis() {
+    this.irPara('PerfisScene');
   }
 
   irPara(cena, dados) {

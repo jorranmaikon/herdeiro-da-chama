@@ -38,6 +38,7 @@ export default class BiomeMapaScene extends Phaser.Scene {
     this.desenharTrilha();
     this.rodape('Toque na fase para entrar');
 
+    this.botaoVoltar();
     this.input.keyboard.on('keydown-ESC', () => this.voltar());
     this.cameras.main.fadeIn(600);
   }
@@ -135,6 +136,32 @@ export default class BiomeMapaScene extends Phaser.Scene {
     this.entrando = true;
     this.cameras.main.fadeOut(500);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(fase.cena));
+  }
+
+  // Botão de voltar VISÍVEL. Antes só existia a tecla ESC, e num celular não
+  // há tecla nenhuma: quem terminava as duas fases da Vila ficava preso no
+  // mapa do bioma, sem caminho de volta ao Mapa do Continente e sem como
+  // chegar ao Bosque.
+  botaoVoltar() {
+    const x = 100;
+    const y = GAME_HEIGHT - 46;
+
+    const botao = this.add
+      .rectangle(x, y, 170, 44, 0x1a2418, 0.85)
+      .setStrokeStyle(2, 0x55603f)
+      .setDepth(20)
+      .setInteractive({ useHandCursor: true });
+
+    this.add
+      .text(x, y, '< Continente', {
+        fontFamily: 'monospace',
+        fontSize: '17px',
+        color: '#ffe9b0',
+      })
+      .setOrigin(0.5)
+      .setDepth(21);
+
+    botao.on('pointerdown', () => this.voltar());
   }
 
   voltar() {

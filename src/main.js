@@ -4,6 +4,7 @@ import AudioManager from './managers/AudioManager.js';
 import PreloadScene from './scenes/PreloadScene.js';
 import MenuScene from './scenes/MenuScene.js';
 import ContinenteScene from './scenes/ContinenteScene.js';
+import PerfisScene from './scenes/PerfisScene.js';
 import BosqueMapaScene from './scenes/BosqueMapaScene.js';
 import VilaMapaScene from './scenes/VilaMapaScene.js';
 import Fase1Scene from './scenes/biomes/Vila_0/Fase1Scene.js';
@@ -33,6 +34,7 @@ const game = new Phaser.Game({
   scene: [
     PreloadScene,
     MenuScene,
+    PerfisScene,
     ChronicleScene,
     ContinenteScene,
     VilaMapaScene,

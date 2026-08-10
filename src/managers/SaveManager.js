@@ -1,19 +1,23 @@
 // Save do jogo (08_ARQUITETURA_TECNICA.md, Seção 6).
 //
-// Slot único, chave única, estrutura versionada para permitir migração futura
-// sem quebrar saves antigos. Este é o ÚNICO ponto do código que toca
-// `localStorage` — nenhuma cena acessa storage por fora daqui.
+// MÚLTIPLOS PERFIS. O `06_INTERFACE_UX.md`, Seção 7, previa slot único "a menos
+// que haja necessidade futura de múltiplos slots" — a necessidade apareceu: o
+// jogo vai ser mostrado a várias pessoas no mesmo dispositivo, e cada uma
+// precisa do seu progresso. A Seção 7 daquele documento deve ser atualizada.
 //
-// O que é salvo hoje é o mínimo que resolve o problema real: quais fases já
-// foram concluídas e quais Crônicas já foram vistas. Vida, itens carregados e
-// checkpoint atual entram quando existirem sistemas para eles.
+// Uma chave de localStorage por perfil, mais uma chave separada guardando qual
+// perfil está em uso. Este continua sendo o ÚNICO ponto do código que toca
+// storage — nenhuma cena acessa por fora daqui.
 
-const CHAVE = 'herdeiro_da_chama_save';
+const PREFIXO = 'herdeiro_da_chama_save';
+const CHAVE_ATUAL = 'herdeiro_da_chama_perfil';
 const VERSAO = 1;
+
+export const TOTAL_PERFIS = 5;
 
 // Fábrica, não constante.
 //
-// Um objeto literal compartilhado seria copiado com `{ ...VAZIO }`, mas os
+// Um objeto literal compartilhado seria copiado com espalhamento, mas os
 // ARRAYS dentro dele continuariam sendo os mesmos: cada fase concluída seria
 // empilhada no molde do save vazio, e apagar o progresso não apagaria nada.
 function vazio() {
@@ -21,43 +25,93 @@ function vazio() {
     version: VERSAO,
     fasesConcluidas: [],
     cronicasVistas: [],
+    atualizadoEm: null,
   };
+}
+
+function ler(chave) {
+  try {
+    return localStorage.getItem(chave);
+  } catch {
+    // localStorage pode estar indisponível (aba privada, cota cheia). O jogo
+    // continua funcionando, só não persiste.
+    return null;
+  }
+}
+
+function escrever(chave, valor) {
+  try {
+    localStorage.setItem(chave, valor);
+  } catch {
+    // Falha ao salvar não pode interromper a partida em andamento.
+  }
 }
 
 class SaveManager {
   constructor() {
-    this.dados = this.carregar();
+    const guardado = Number(ler(CHAVE_ATUAL));
+    this.perfil = guardado >= 1 && guardado <= TOTAL_PERFIS ? guardado : 1;
+    this.dados = this.carregar(this.perfil);
   }
 
-  carregar() {
+  chaveDe(n) {
+    return `${PREFIXO}_${n}`;
+  }
+
+  carregar(n) {
+    const bruto = ler(this.chaveDe(n));
+    if (!bruto) return vazio();
+
     try {
-      const bruto = localStorage.getItem(CHAVE);
-      if (!bruto) return vazio();
-
       const dados = JSON.parse(bruto);
-
-      // Save de versão desconhecida é descartado em silêncio em vez de
-      // quebrar o jogo. Quando houver migração de verdade, ela entra aqui.
+      // Save de versão desconhecida é descartado em silêncio em vez de quebrar
+      // o jogo. Quando houver migração de verdade, ela entra aqui.
       if (dados.version !== VERSAO) return vazio();
-
       return { ...vazio(), ...dados };
     } catch {
-      // localStorage pode estar indisponível (aba privada, cota cheia). O jogo
-      // continua funcionando, só não persiste.
       return vazio();
     }
   }
 
   salvar() {
-    try {
-      localStorage.setItem(CHAVE, JSON.stringify(this.dados));
-    } catch {
-      // Falha ao salvar não pode interromper a partida em andamento.
-    }
+    this.dados.atualizadoEm = Date.now();
+    escrever(this.chaveDe(this.perfil), JSON.stringify(this.dados));
   }
 
   // --------------------------------------------------------------------
-  // Progresso
+  // Perfis
+  // --------------------------------------------------------------------
+  /** Resumo de todos os perfis, para a tela de seleção. */
+  listarPerfis() {
+    return Array.from({ length: TOTAL_PERFIS }, (_, i) => {
+      const n = i + 1;
+      const dados = this.carregar(n);
+      return {
+        numero: n,
+        usado: dados.fasesConcluidas.length > 0 || dados.cronicasVistas.length > 0,
+        fasesConcluidas: dados.fasesConcluidas.length,
+        atualizadoEm: dados.atualizadoEm,
+      };
+    });
+  }
+
+  usarPerfil(n) {
+    this.perfil = n;
+    this.dados = this.carregar(n);
+    escrever(CHAVE_ATUAL, String(n));
+  }
+
+  apagarPerfil(n) {
+    try {
+      localStorage.removeItem(this.chaveDe(n));
+    } catch {
+      // idem
+    }
+    if (n === this.perfil) this.dados = vazio();
+  }
+
+  // --------------------------------------------------------------------
+  // Progresso do perfil em uso
   // --------------------------------------------------------------------
   temProgresso() {
     return this.dados.fasesConcluidas.length > 0
@@ -82,15 +136,6 @@ class SaveManager {
     if (this.cronicaVista(id)) return;
     this.dados.cronicasVistas.push(id);
     this.salvar();
-  }
-
-  apagar() {
-    this.dados = vazio();
-    try {
-      localStorage.removeItem(CHAVE);
-    } catch {
-      // idem
-    }
   }
 }
 
