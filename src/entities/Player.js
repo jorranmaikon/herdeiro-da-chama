@@ -6,6 +6,17 @@ import { PLAYER_TUNING, GRAVITY, PLAYER_CELL, GROUND_INSET } from '../config/gam
 //   linha 0 = Idle | 1 = Correr | 2 = Pular/Cair | 3 = Ataque | 4 = Morte
 //
 // O sprite é desenhado em escala 1.0 — a célula já tem o tamanho de exibição.
+
+// Invencibilidade após levar dano, com piscar visual (03_GAMEPLAY_MACRO.md,
+// Seção 3). Longa o bastante para sair de cima de um perigo de cenário sem
+// tomar um segundo golpe pelo mesmo contato.
+const IFRAME_MS = 900;
+
+// Knockback leve. O empurrão vertical é pequeno e serve para tirar o jogador
+// do contato — não para arremessá-lo, que faria um perigo jogar dentro de
+// outro.
+const KNOCKBACK_X = 260;
+const KNOCKBACK_Y = -320;
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'protagonista', 0);
@@ -24,6 +35,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.isAttacking = false;
     this.isDead = false;
+    this.invulnerable = false;
     this.lastGroundedAt = 0;
     this.jumpBufferedAt = -9999;
 
@@ -128,6 +140,39 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
+  // Dano recebido (03_GAMEPLAY_MACRO.md, Seção 3): i-frames com piscar visual
+  // e knockback leve. Serve tanto para inimigos quanto para perigo de cenário.
+  //
+  // NÃO existe controle de vida aqui ainda: o sistema de unidades de vida
+  // pertence ao 05_BALANCEAMENTO.md e à HUD, que ainda não foram implementados.
+  // Enquanto isso, quem chama recebe o gancho `onDamage` para contabilizar.
+  // Perigo de cenário nunca mata (Seção 3.1), então este método jamais leva à
+  // morte por conta própria.
+  //
+  // @param {number} direcao -1 empurra para a esquerda, +1 para a direita
+  hurt(direcao = 1) {
+    if (this.isDead || this.invulnerable) return;
+    this.invulnerable = true;
+
+    this.setVelocity(direcao * KNOCKBACK_X, KNOCKBACK_Y);
+
+    const piscar = this.scene.tweens.add({
+      targets: this,
+      alpha: 0.3,
+      duration: 90,
+      yoyo: true,
+      repeat: -1,
+    });
+
+    this.scene.time.delayedCall(IFRAME_MS, () => {
+      piscar.stop();
+      this.setAlpha(1);
+      this.invulnerable = false;
+    });
+
+    this.onDamage?.(1);
+  }
+
   /** Toca a animação de morte e avisa quando terminar. */
   die(onComplete) {
     if (this.isDead) return;
@@ -142,6 +187,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   respawnAt(x, y) {
     this.isDead = false;
     this.isAttacking = false;
+    this.invulnerable = false;
+    this.setAlpha(1);
     this.setVelocity(0, 0);
     this.setAcceleration(0, 0);
     this.setPosition(x, y);

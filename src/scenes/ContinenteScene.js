@@ -9,8 +9,14 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig.js';
 // A ordem segue a espiral do 02_CONTINENTE.md: da Vila, na borda, até o Vulcão,
 // no centro geográfico.
 const REGIOES = [
-  { id: 'vila', nome: 'Vila Inicial', x: 254, y: 594, liberada: true },
-  { id: 'bosque', nome: 'Bosque Esmeralda', x: 177, y: 413 },
+  { id: 'vila', nome: 'Vila Inicial', x: 254, y: 594, liberada: true, destino: 'VilaMapaScene' },
+  // O Bosque entra direto na Fase 1, sem passar por um Mapa do Bioma.
+  //
+  // PENDÊNCIA: o 06_INTERFACE_UX.md (Seção 2.2) torna o Mapa do Bioma
+  // obrigatório em todo Vertical Slice. O do Bosque ainda não existe — falta a
+  // arte e faltam as outras três fases para haver o que mapear. Entrar direto
+  // é provisório e sai assim que as Fases 2 a 4 estiverem prontas.
+  { id: 'bosque', nome: 'Bosque Esmeralda', x: 177, y: 413, liberada: true, destino: 'BosqueFase1Scene' },
   { id: 'floresta', nome: 'Floresta Sombria', x: 229, y: 204 },
   { id: 'montanhas', nome: 'Montanhas de Ferro', x: 414, y: 92 },
   { id: 'picos', nome: 'Picos Congelados', x: 1029, y: 138 },
@@ -47,7 +53,7 @@ export default class ContinenteScene extends Phaser.Scene {
     this.marcadores = REGIOES.map((r) => this.marcador(r));
 
     this.dica = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 32, 'Toque na Vila Inicial para começar', {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 32, 'Toque numa região liberada para entrar', {
         fontFamily: 'monospace',
         fontSize: '19px',
         color: '#ffe9b0',
@@ -133,7 +139,7 @@ export default class ContinenteScene extends Phaser.Scene {
     this.time.delayedCall(1800, () => {
       this.cameras.main.fadeOut(500);
       this.cameras.main.once('camerafadeoutcomplete', () =>
-        this.scene.start('VilaMapaScene', { origem: regiao }),
+        this.scene.start(regiao.destino, { origem: regiao }),
       );
     });
   }
