@@ -44,6 +44,9 @@ export const SLIME = {
     idle:  { quadros: [0, 1, 2, 3], taxa: 4, repetir: -1 },
     pulo:  { quadros: [4, 5, 6, 7], taxa: 8 },
     dano:  { quadros: [9, 10, 8], taxa: 12 },
-    morte: { quadros: [12, 13, 14], taxa: 8 },
+    // Começa em 13, não em 12: o quadro 12 é o corpo ainda inteiro, e exibi-lo
+    // depois do golpe fatal dava a impressão de que o Slime tinha sobrevivido.
+    // A morte precisa começar já deformando.
+    morte: { quadros: [13, 14], taxa: 9 },
   },
 };

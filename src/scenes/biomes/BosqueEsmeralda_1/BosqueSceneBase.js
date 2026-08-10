@@ -34,6 +34,41 @@ const WALL_ROWS_OVER_GAP = 4;
 //   - perigos de cenário (03_GAMEPLAY_MACRO.md, Seção 3.1);
 //   - duas camadas de fundo em vez de três, com a copa fechando o topo da tela.
 export default class BosqueSceneBase extends BiomeSceneBase {
+  // Montagem completa de uma fase do bioma. As fases concretas só declaram o
+  // layout e o destino — nenhuma delas repete esta sequência.
+  create() {
+    this.buildCommon();
+    this.buildExit();
+    this.buildPlayer();
+    this.buildCamera();
+
+    this.input.keyboard.on('keydown-ESC', () => this.leave());
+    this.game.audio.play(this, 'mus_fase');
+  }
+
+  update(time) {
+    if (!this.updateCommon(time)) return;
+    this.updateEnemies(time);
+    this.input$.lateUpdate();
+  }
+
+  /** Para onde esta fase leva ao chegar na saída. */
+  proximaCena() {
+    return 'ContinenteScene';
+  }
+
+  finishPhase() {
+    if (this.finished) return;
+    this.finished = true;
+
+    this.cameras.main.fadeOut(700);
+    this.cameras.main.once('camerafadeoutcomplete', () => this.leave());
+  }
+
+  leave() {
+    this.scene.start(this.proximaCena());
+  }
+
   // --------------------------------------------------------------------
   // Fundo
   // --------------------------------------------------------------------
@@ -61,6 +96,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
   buildScenery() {
     this.solids = this.physics.add.staticGroup();
+    this.curaColetadas = new Set();
 
     // Ordenar aqui, e não confiar na ordem do arquivo de layout, é o que
     // permite descobrir o vizinho de cada segmento sem varrer a lista toda.
@@ -70,6 +106,9 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     this.L.PLATFORMS.forEach((p) => this.addPlatform(p));
     this.buildHazards();
     this.buildEnemies();
+    this.buildArvoreMirante();
+    this.buildFenda();
+    this.buildItensCura();
   }
 
   // --------------------------------------------------------------------
@@ -321,6 +360,101 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   }
 
   // --------------------------------------------------------------------
+  // Mirante
+  // --------------------------------------------------------------------
+  // A Árvore Gigante não é camada de parallax: como fundo permanente ela
+  // poluía a tela e brigava com o primeiro plano. Ela aparece por
+  // ENQUADRAMENTO, em pontos escolhidos — aqui, no ponto mais alto da fase,
+  // como recompensa de quem sobe. Continua sendo o marco visual do bioma
+  // (02_CONTINENTE.md), mas por composição em vez de onipresença.
+  buildArvoreMirante() {
+    if (this.L.MIRANTE_TILE === undefined) return;
+
+    this.add
+      .image(this.L.MIRANTE_TILE * TILE, this.groundTopAt(this.L.MIRANTE_TILE), 'bosque_arvore')
+      .setOrigin(0.5, 1)
+      // Parallax bem lento: quanto mais devagar a camada anda, mais distante
+      // ela parece. É o que dá escala à árvore sem precisar aumentá-la.
+      .setScrollFactor(0.25, 1)
+      .setDepth(-60);
+  }
+
+  // --------------------------------------------------------------------
+  // Itens de cura
+  // --------------------------------------------------------------------
+  // Itens no caminho ALTO ou em desvios (VS_1_BOSQUE_ESMERALDA.md, Seção 9):
+  // recompensa por escolher o risco em vez da rota segura.
+  buildItensCura() {
+    this.curaZones = this.L.HEALING_ITEMS.map(([tileX, row], i) => {
+      const x = tileX * TILE;
+      const y = row * TILE;
+
+      const sprite = this.add
+        .image(x, y, 'item_cura')
+        .setOrigin(0.5, 1)
+        .setDepth(-5);
+
+      this.tweens.add({
+        targets: sprite,
+        y: y - 6,
+        duration: 1400,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+
+      const zone = this.add.zone(x, y - 24, 60, 56);
+      this.physics.add.existing(zone, true);
+      zone.setData({ id: i, sprite });
+      return zone;
+    });
+  }
+
+  coletarCura(zone) {
+    const id = zone.getData('id');
+    if (this.curaColetadas.has(id)) return;
+    this.curaColetadas.add(id);
+
+    const sprite = zone.getData('sprite');
+    this.tweens.killTweensOf(sprite);
+    this.tweens.add({
+      targets: sprite,
+      y: sprite.y - 40,
+      alpha: 0,
+      duration: 420,
+      onComplete: () => sprite.destroy(),
+    });
+    this.showNotice('Ervas curativas');
+  }
+
+  // --------------------------------------------------------------------
+  // Fenda bloqueada
+  // --------------------------------------------------------------------
+  // Passagem baixa, visível do caminho principal e intransponível a pé.
+  // Não se resolve neste bioma — o Rolamento só chega depois do Boss. Existe
+  // para plantar curiosidade (03_GAMEPLAY_MACRO.md, Seção 6), e por isso é
+  // sinalizada mesmo sem o jogador ter a habilidade.
+  buildFenda() {
+    if (this.L.FENDA_TILE === undefined) return;
+
+    const x = this.L.FENDA_TILE * TILE;
+    const y = this.groundTopAt(this.L.FENDA_TILE);
+
+    // Vão escuro de meio tile de altura: alto o bastante para se ver que é
+    // passagem, baixo o bastante para ser obviamente impossível de pé.
+    this.add.rectangle(x, y, TILE * 2, TILE * 0.5, 0x121c14, 0.92)
+      .setOrigin(0, 1)
+      .setDepth(-7);
+
+    const marca = this.add.rectangle(x + TILE, y - TILE * 0.5, TILE * 2, 4, 0xd8cba8, 0.5)
+      .setOrigin(0.5, 1)
+      .setDepth(-6);
+    this.tweens.add({
+      targets: marca, alpha: 0.15, yoyo: true, repeat: -1, duration: 1600,
+    });
+  }
+
+  // --------------------------------------------------------------------
   // Perigos de cenário (03_GAMEPLAY_MACRO.md, Seção 3.1)
   // --------------------------------------------------------------------
   // Elementos fixos, sem IA e sem vida. Causam 1 unidade de dano ao contato,
@@ -373,7 +507,9 @@ export default class BosqueSceneBase extends BiomeSceneBase {
       );
     });
 
-    this.afterBosquePlayerBuilt?.();
+    this.curaZones.forEach((zone) => {
+      this.physics.add.overlap(this.player, zone, () => this.coletarCura(zone));
+    });
   }
 
   /** Chamada pelas fases a cada frame, depois de updateCommon. */

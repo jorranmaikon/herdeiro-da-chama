@@ -159,8 +159,20 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     // o último quadro passam vários frames, e nesse intervalo o inimigo já não
     // deve participar de colisão nem de golpe.
     this.aoMorrer?.();
+
+    // A animação de morte é reiniciada à força e o destroy é agendado por
+    // TEMPO, não pelo evento de fim de animação.
+    //
+    // Depender do evento deixava o inimigo parado no último quadro por um
+    // intervalo imprevisível: se ele morresse no meio de outra animação, o
+    // `once` anterior ainda pendurado consumia o evento e o `once` da morte
+    // nunca disparava. O resultado parecia um corpo esperando para sumir.
+    this.off(`animationcomplete-${this.cfg.textura}-dano`);
+    this.anims.stop();
     this.tocar('morte', true);
-    this.once(`animationcomplete-${this.cfg.textura}-morte`, () => this.destroy());
+
+    const { quadros, taxa } = this.cfg.animacoes.morte;
+    this.scene.time.delayedCall((quadros.length / taxa) * 1000, () => this.destroy());
   }
 
   get vivo() {
