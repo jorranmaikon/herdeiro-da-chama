@@ -70,11 +70,14 @@ export const LOBO = {
   locomocao: 'andar',
   velocidadePatrulha: 55,
   velocidade: 130,        // perseguindo
-  velocidadeBote: 420,    // o bote em si
+  velocidadeBote: 620,    // o bote em si: rápido o bastante para acertar
+  duracaoBoteMs: 260,     // quanto tempo ele mantém essa velocidade
   alcanceDeteccao: 340,
-  alcanceBote: 170,
-  telegrafoMs: 620,       // tempo parado, recuado, antes de avançar
-  recuperacaoMs: 780,     // a abertura do jogador
+  // Curto de propósito. Com 170px ele telegrafava do outro lado da tela e o
+  // bote acabava antes de chegar perto — dava para andar até ele sem risco.
+  alcanceBote: 110,
+  telegrafoMs: 420,       // tempo parado, recuado, antes de avançar
+  recuperacaoMs: 620,     // a abertura do jogador, depois do bote
   esperaAlertaMs: 200,
   knockback: 200,
 
@@ -108,9 +111,9 @@ export const MORCEGO = {
   locomocao: 'voar',
   velocidade: 120,
   alcanceDeteccao: 300,
-  alturaAcimaDoAlvo: 90,   // persegue um pouco acima do jogador
-  amplitudeOnda: 40,
-  periodoOndaMs: 260,
+  amplitudeOnda: 26,
+  periodoOndaMs: 300,
+  zonaMorta: 14,           // evita tremer ao chegar em cima do jogador
   esperaAlertaMs: 220,
   knockback: 160,
 

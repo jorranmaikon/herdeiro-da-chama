@@ -11,9 +11,13 @@ const ATTACK_W = 84;
 const ATTACK_ABAIXO = 40;  // quanto o golpe desce além dos pés
 const ATTACK_OFFSET = 10;
 
-// Recuo do topo de colisão da plataforma de pedra, acompanhando o musgo vazado
-// da arte — sem ele o personagem parece flutuar sobre a plataforma.
-const PLATFORM_INSET = 6;
+// Recuo do topo de colisão das plataformas.
+//
+// É o MESMO GROUND_INSET do terreno, e isso importa: uma plataforma cuja linha
+// coincide com a do chão vizinho precisa ter o topo exatamente na mesma altura.
+// Com recuos diferentes sobrava um degrau de 2px que o motor tratava como
+// parede — o jogador subia na ponte sobre o vão, travava, e caía no buraco.
+const PLATFORM_INSET = GROUND_INSET;
 
 // Espessura do corpo de colisão de qualquer plataforma. Fina de propósito: só
 // o topo é sólido, o resto da altura fica livre para passar por baixo.
@@ -357,7 +361,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
         .tileSprite(x0, y, width, this.textureHeight('bosque_oneway'), 'bosque_oneway')
         .setOrigin(0, 0)
         .setDepth(-9);
-      this.addOneWay(x0, y, width, PLATFORM_SOLID_H);
+      this.addOneWay(x0, y + PLATFORM_INSET, width, PLATFORM_SOLID_H);
       return;
     }
 

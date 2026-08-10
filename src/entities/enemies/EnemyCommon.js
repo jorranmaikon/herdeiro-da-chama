@@ -49,6 +49,11 @@ export default class EnemyCommon extends Enemy {
   // recuperação é a abertura que o jogador precisa aprender a explorar.
   andar(time) {
     if (this.estado === ESTADO.RECUPERAR) {
+      // O bote precisa PERCORRER a distância. Zerar a velocidade já no frame
+      // seguinte ao disparo transformava o ataque num passo curto e lento — o
+      // Lobo saía andando na direção do jogador em vez de avançar.
+      if (time < this.boteAte) return;
+
       this.setVelocityX(0);
       if (time >= this.proximaAcaoEm) this.estado = ESTADO.IDLE;
       return;
@@ -64,7 +69,8 @@ export default class EnemyCommon extends Enemy {
       this.setVelocityX(this.direcao * this.cfg.velocidadeBote);
       this.tocar('bote', true);
       this.estado = ESTADO.RECUPERAR;
-      this.proximaAcaoEm = time + this.cfg.recuperacaoMs;
+      this.boteAte = time + this.cfg.duracaoBoteMs;
+      this.proximaAcaoEm = time + this.cfg.duracaoBoteMs + this.cfg.recuperacaoMs;
       return;
     }
 
@@ -106,14 +112,21 @@ export default class EnemyCommon extends Enemy {
     this.direcao = player.x < this.x ? -1 : 1;
     this.setFlipX(this.direcao < 0);
 
-    // Persegue em diagonal, com uma oscilação vertical que impede a
-    // trajetória de virar uma linha reta previsível.
+    // Mira o CORPO do jogador, não um ponto acima dele. Perseguir uma altura
+    // deslocada fazia o morcego pairar em cima da cabeça sem nunca encostar,
+    // oscilando no lugar — ameaça nenhuma, só ruído na tela.
+    const corpo = player.body;
     const onda = Math.sin(time / this.cfg.periodoOndaMs) * this.cfg.amplitudeOnda;
-    const alvoY = player.y - this.cfg.alturaAcimaDoAlvo + onda;
+    const alvoY = corpo.center.y + onda;
 
-    this.setVelocityX(this.direcao * this.cfg.velocidade);
+    // Zona morta horizontal: sem ela, ao alcançar o jogador o morcego troca de
+    // direção a cada frame e treme em cima dele.
+    const dx = player.x - this.x;
+    const vx = Math.abs(dx) < this.cfg.zonaMorta ? 0 : this.direcao * this.cfg.velocidade;
+
+    this.setVelocityX(vx);
     this.setVelocityY(Phaser.Math.Clamp(
-      (alvoY - this.y) * 3,
+      (alvoY - this.y) * 4,
       -this.cfg.velocidade,
       this.cfg.velocidade,
     ));

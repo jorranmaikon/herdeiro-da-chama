@@ -19,7 +19,4 @@ export default class BosqueFase1Scene extends BosqueSceneBase {
     return 'bosque_1';
   }
 
-  proximaCena() {
-    return 'BosqueFase2Scene';
-  }
 }
