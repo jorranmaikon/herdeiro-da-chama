@@ -169,14 +169,44 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   }
 
   resolverPisada(urso) {
-    this.cameras.main.shake(260, 0.012);
+    this.cameras.main.shake(300, 0.014);
+    this.ondaDeChoque(urso);
 
     if (this.player.isDead || this.player.invulnerable) return;
+
+    // A pisada bate em ÁREA no CHÃO: pega quem estiver perto, esteja
+    // encostado ou não. Quem está no ar escapa — é a saída que o ataque
+    // deixa em aberto, e o que faz dele um ataque legível em vez de um
+    // imposto.
+    const noAr = !(this.player.body.blocked.down || this.player.body.touching.down);
+    if (noAr) return;
+
     const dx = Math.abs(this.player.x - urso.x);
-    const dy = Math.abs(this.player.y - urso.y);
-    if (dx > urso.cfg.raioPisada || dy > urso.cfg.raioPisada) return;
+    if (dx > urso.cfg.raioPisada) return;
 
     this.player.hurt(this.player.x < urso.x ? -1 : 1);
+  }
+
+  // Anel de poeira que se abre a partir das patas. Não é enfeite: é o que
+  // comunica o alcance real do ataque, que é maior que o corpo do Urso.
+  ondaDeChoque(urso) {
+    const y = urso.body.bottom - 6;
+
+    [-1, 1].forEach((lado) => {
+      const onda = this.add
+        .rectangle(urso.x, y, 10, 26, 0xd9c9a6, 0.75)
+        .setOrigin(lado < 0 ? 1 : 0, 1)
+        .setDepth(-2);
+
+      this.tweens.add({
+        targets: onda,
+        width: urso.cfg.raioPisada,
+        alpha: 0,
+        duration: 320,
+        ease: 'Cubic.easeOut',
+        onComplete: () => onda.destroy(),
+      });
+    });
   }
 
   // --------------------------------------------------------------------
@@ -195,9 +225,15 @@ export default class BosqueSceneBase extends BiomeSceneBase {
       cfg.textura,
     );
     pedra.setDepth(-1);
-    pedra.body.setAllowGravity(true);
+
+    // A gravidade do MUNDO é a do personagem — pesada de propósito, para o
+    // pulo ter peso. Aplicada a uma pedra, ela derrubava o arremesso no chão
+    // quase na mão do Goblin. O projétil desliga a gravidade global e usa uma
+    // própria, bem mais leve, que é o que produz um arco longo.
+    pedra.body.setAllowGravity(false);
     pedra.body.setGravityY(cfg.gravidade);
-    pedra.setVelocity(direcao * cfg.velocidade, -110);
+    pedra.setVelocity(direcao * cfg.velocidade, cfg.impulsoVertical);
+    pedra.setAngularVelocity(direcao * 320);
 
     // Some sozinha depois de um tempo: sem isso, toda pedra errada continuaria
     // viva no mundo até o fim da fase.

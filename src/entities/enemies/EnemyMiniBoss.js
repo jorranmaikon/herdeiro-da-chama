@@ -57,7 +57,16 @@ export default class EnemyMiniBoss extends Enemy {
   // incômoda, e o jogador não consegue aprender a leitura — a alternância
   // garante que os dois apareçam e mantém a luta legível.
   iniciarPadrao(time) {
-    const proximo = this.ultimoPadrao === 'investida' ? 'pisada' : 'investida';
+    // A escolha respeita a DISTÂNCIA antes da alternância.
+    //
+    // Alternar cegamente fazia o Urso pisar o chão a dois corpos de distância
+    // e investir estando colado — atacava o vento nos dois casos. Perto, ele
+    // pisa; longe, ele investe, porque a investida é o que percorre espaço.
+    // Entre os dois extremos vale a alternância, que mantém a luta legível.
+    let proximo;
+    if (this.distanciaAoJogador <= this.cfg.alcancePisada) proximo = 'pisada';
+    else if (this.distanciaAoJogador >= this.cfg.alcanceInvestida) proximo = 'investida';
+    else proximo = this.ultimoPadrao === 'investida' ? 'pisada' : 'investida';
     this.padraoAtual = proximo;
     this.ultimoPadrao = proximo;
 
@@ -84,7 +93,14 @@ export default class EnemyMiniBoss extends Enemy {
       if (this.padraoAtual === 'investida') {
         // A investida é a única que se desloca: é a versão maior e mais lenta
         // da investida do Lobo, e o jogador já sabe lê-la.
-        this.direcao = player.x < this.x ? -1 : 1;
+        //
+        // ANTECIPAÇÃO: ele mira onde o jogador VAI ESTAR, não onde está. Sem
+        // isso bastava andar para o lado durante o telegraph e a investida
+        // passava reto — o ataque virava decorativo. Com previsão, fugir na
+        // horizontal deixa de funcionar e a saída passa a ser o tempo: esperar
+        // e desviar no último instante.
+        const alvoX = player.x + player.body.velocity.x * this.cfg.previsaoS;
+        this.direcao = alvoX < this.x ? -1 : 1;
         this.setFlipX(this.direcao < 0);
         this.setVelocityX(this.direcao * this.cfg.velocidadeInvestida);
         this.tocar('investir', true);

@@ -160,9 +160,10 @@ export const GOBLIN = {
   // telegraph do Bestiário aplicada a um projétil.
   projetil: {
     textura: 'pedra_bosque',
-    velocidade: 300,
-    gravidade: 260,        // arco suave, não linha reta
-    vidaMs: 2600,
+    velocidade: 430,
+    impulsoVertical: -210,  // sobe antes de cair: é isso que faz o arco
+    gravidade: 300,         // própria, bem mais leve que a do mundo
+    vidaMs: 3200,
   },
 
   animacoes: {
@@ -193,9 +194,15 @@ export const URSO = {
   vida: 12,
   dano: 1,          // ~1,5 unidade na régua do 05_BALANCEAMENTO.md, Seção 2
 
+  padrao: 'telegrafado',    // só machuca durante o próprio golpe
   velocidade: 95,
   alcanceDeteccao: 900,     // a arena inteira
-  alcanceAtaque: 260,
+  alcanceAtaque: 420,       // daqui para dentro ele já ataca
+
+  // Perto ele pisa, longe ele investe. Entre os dois, alterna.
+  alcancePisada: 190,
+  alcanceInvestida: 300,
+  previsaoS: 0.30,          // mira onde o jogador vai estar, não onde está
 
   telegrafoInvestidaMs: 700,
   velocidadeInvestida: 460,
@@ -203,7 +210,7 @@ export const URSO = {
 
   telegrafoPisadaMs: 780,   // mais longo: é o ataque de área, precisa ser lido
   duracaoPisadaMs: 420,
-  raioPisada: 210,
+  raioPisada: 260,          // bem maior que o corpo: obriga a se afastar
 
   recuperacaoMs: 900,       // a abertura do jogador, depois de cada padrão
   esperaAlertaMs: 300,

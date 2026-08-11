@@ -496,6 +496,25 @@ def _extrair_quadro(folha, lado, linha, coluna, margem):
         if area < area_minima:
             continue  # rótulo escrito, respingo, carimbo
 
+        alt = fatia[0].stop - fatia[0].start
+        larg = fatia[1].stop - fatia[1].start
+
+        # Descarta a MOLDURA da célula.
+        #
+        # Algumas folhas trazem a grade desenhada como linhas pretas. Elas
+        # formam uma única mancha que envolve a célula inteira, tem área
+        # respeitável e fica centrada exatamente onde o personagem deveria
+        # estar — então passava pelos dois filtros acima e virava uma caixa
+        # preta em volta do bicho. Pior: sendo a mancha mais alta da folha,
+        # era ela que definia a escala, e o personagem encolhia dentro dela.
+        #
+        # O que a denuncia é ser OCA: ocupa quase toda a janela mas preenche
+        # pouquíssimo da própria caixa delimitadora.
+        preenchimento = area / max(1, alt * larg)
+        ocupa_tudo = alt > 0.85 * janela.shape[0] and larg > 0.85 * janela.shape[1]
+        if ocupa_tudo and preenchimento < 0.30:
+            continue
+
         cy = (fatia[0].start + fatia[0].stop) / 2
         cx = (fatia[1].start + fatia[1].stop) / 2
         if abs(cy - centro_y) > limite_y or abs(cx - centro_x) > limite_x:
