@@ -321,7 +321,11 @@ export const GUARDIAO = {
     textura: 'folha_navalha',
     quantidade: 3,
     velocidade: 430,
-    alturas: [-40, -150, -260],  // três alturas: achar a brecha é a resposta
+    // Três alturas com 176px entre elas. O jogador tem 104px e no ápice do
+    // pulo ocupa de -176 a -72: passar entre a lâmina de baixo e a do meio
+    // exige acertar o tempo, mas cabe. Com o espaçamento anterior, de 110px,
+    // não cabia — era um ataque impossível de atravessar.
+    alturas: [-24, -200, -376],
     vidaMs: 3200,
   },
 
@@ -360,8 +364,12 @@ export const GUARDIAO = {
     idle:         { quadros: [0, 1, 2, 3, 4], taxa: 4, repetir: -1 },
     andar:        { quadros: [5, 6, 7, 8, 9], taxa: 7, repetir: -1 },
     raizes:       { quadros: [10, 11, 12, 13, 14], taxa: 7 },
-    navalhada:    { quadros: [15, 16, 17, 18, 19], taxa: 9 },
-    galho:        { quadros: [20, 21, 22, 23], taxa: 9 },
+    // Linhas trocadas em relação à leitura original da folha: o braço que se
+    // estende MUITO à frente (20–23) lê como arremesso e vai para a navalhada;
+    // o avanço mais curto (15–19) lê como golpe e fica com o galho. Do jeito
+    // anterior, o ataque corpo a corpo parecia um disparo de flecha.
+    navalhada:    { quadros: [20, 21, 22, 23], taxa: 9 },
+    galho:        { quadros: [15, 16, 17, 18, 19], taxa: 9 },
     afundar:      { quadros: [25, 26, 27, 28, 29], taxa: 8 },
     despencar:    { quadros: [30, 31, 32, 33, 34], taxa: 9 },
     virada:       { quadros: [35, 36, 37, 38, 39], taxa: 5 },

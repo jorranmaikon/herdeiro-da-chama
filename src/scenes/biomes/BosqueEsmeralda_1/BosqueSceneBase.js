@@ -252,7 +252,11 @@ export default class BosqueSceneBase extends BiomeSceneBase {
       if (this.player.isDead || this.player.invulnerable) return;
       if (Math.abs(this.player.x - x) > cfg.espacamento * 0.45) return;
       if (this.player.body.bottom < y - cfg.alturaAcerto) return;
-      this.player.hurt(this.player.x < x ? -1 : 1, chefe.cfg.empurrao);
+
+      // Raiz brotando por baixo DERRUBA: o jogador vai ao chão e perde o tempo
+      // de levantar. É o que dá peso ao ataque e o que ensina a respeitar a
+      // marca no chão.
+      this.player.derrubar(this.player.x < x ? -1 : 1);
     };
 
     golpear();

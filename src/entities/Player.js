@@ -20,6 +20,10 @@ const KNOCKBACK_Y = -320;
 
 // Janela em que o input horizontal é ignorado depois de um empurrão forte.
 const EMPURRAO_SEM_CONTROLE_MS = 260;
+
+// Derrubada: tempo no chão e força do empurrão que a acompanha.
+const DERRUBADA_MS = 620;
+const DERRUBADA_FORCA = 2.2;
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'protagonista', 0);
@@ -80,9 +84,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.handleJump(input, time);
     this.applyFallGravity();
 
-    if (input.attackPressed()) this.attack();
+    if (!this.caido && input.attackPressed()) this.attack();
 
-    this.updateAnimation(onGround);
+    if (!this.caido) this.updateAnimation(onGround);
   }
 
   moveHorizontal(input, onGround) {
@@ -203,6 +207,32 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.onDamage?.(1);
   }
 
+  // Derrubada: o jogador vai ao chão sem morrer.
+  //
+  // Reaproveita a animação de morte, que já mostra o corpo caindo — para um
+  // golpe que joga alguém no chão, é exatamente a leitura certa, e não custa
+  // arte nova. A diferença é que ele se levanta.
+  //
+  // Custa mais que um dano comum: além da vida, custa o tempo de levantar. Por
+  // isso é reservada aos golpes pesados de chefe, nunca ao dano de um Comum.
+  derrubar(direcao = 1) {
+    if (this.isDead || this.invulnerable) return;
+
+    this.hurt(direcao, DERRUBADA_FORCA);
+    this.isAttacking = false;
+    this.caido = true;
+    this.semControleAte = this.scene.time.now + DERRUBADA_MS;
+
+    this.play('player-death', true);
+    this.anims.stopOnFrame(this.anims.currentAnim.frames.at(-1));
+
+    this.scene.time.delayedCall(DERRUBADA_MS, () => {
+      if (this.isDead || !this.active) return;
+      this.caido = false;
+      this.play('player-idle', true);
+    });
+  }
+
   /** Toca a animação de morte e avisa quando terminar. */
   die(onComplete) {
     if (this.isDead) return;
@@ -218,6 +248,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.isDead = false;
     this.isAttacking = false;
     this.invulnerable = false;
+    this.caido = false;
     this.semControleAte = 0;
     this.setAlpha(1);
     this.setVelocity(0, 0);
