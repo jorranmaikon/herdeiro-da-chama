@@ -78,7 +78,9 @@ export default class EnemyCommon extends Enemy {
     }
 
     if (this.estado === ESTADO.PERSEGUIR) {
-      if (this.distanciaAoJogador <= this.cfg.alcanceBote) {
+      // alcanceBote 0 desliga o golpe: o inimigo simplesmente corre em cima,
+      // e o dano vem do contato.
+      if (this.cfg.alcanceBote > 0 && this.distanciaAoJogador <= this.cfg.alcanceBote) {
         this.estado = ESTADO.ATACAR;
         this.proximaAcaoEm = time + this.cfg.telegrafoMs;
         this.setVelocityX(0);

@@ -474,10 +474,17 @@ def _remover_grade(folha, lado):
     tolerancia = max(3, round(lado * 0.02))
 
     def linha_de_grade(valores_op, valores_lum):
-        if valores_op.mean() < 0.6:
+        # Exigências apertadas de propósito. Com limiares frouxos, uma fileira
+        # que atravessava o meio de um bicho escuro — o Urso é quase todo
+        # verde-escuro — era lida como grade e apagada, e o sprite saía com
+        # fatias vazadas no jogo.
+        if valores_op.mean() < 0.92:
             return False
         escuros = valores_lum[valores_op]
-        return escuros.size > 0 and escuros.mean() < 85
+        if escuros.size == 0 or escuros.mean() > 60:
+            return False
+        # Linha desenhada tem cor uniforme; pelo de animal, não.
+        return float(escuros.std()) < 16
 
     for k in range(5):  # 4 divisas internas + as duas bordas externas
         for base in ({0, alt} if k == 0 else {k * lado}):

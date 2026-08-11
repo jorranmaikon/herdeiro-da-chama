@@ -8,6 +8,13 @@ import { SLIME, LOBO, MORCEGO, GOBLIN, URSO } from '../../../data/enemiesConfig.
 // Alcance da espada. Largura generosa de propósito: a regra do
 // 03_GAMEPLAY_MACRO.md é hurtbox pequena e alcance folgado — o jogo pune
 // leitura ruim, nunca mira imprecisa.
+// Pisão. A velocidade mínima impede que encostar por cima andando conte como
+// ataque; a tolerância dá folga para o frame em que o pé já entrou um pouco no
+// corpo do inimigo.
+const PISAO_VELOCIDADE_MIN = 40;
+const PISAO_TOLERANCIA = 26;
+const PISAO_QUIQUE = -520;
+
 const ATTACK_W = 84;
 const ATTACK_ABAIXO = 40;  // quanto o golpe desce além dos pés
 const ATTACK_OFFSET = 10;
@@ -386,8 +393,36 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     this.cameras.main.shake(70, 0.003);
   }
 
+  // Pisão: cair em cima de um inimigo machuca ELE, não o jogador.
+  //
+  // Vale para qualquer inimigo, inclusive o Mini-Boss. Não é atalho: exige
+  // estar caindo e acertar o topo do corpo, e o quique devolve o jogador ao ar
+  // sem controle imediato — quem erra a altura leva dano normalmente.
+  //
+  // Isso muda o valor dos caminhos altos e das plataformas atravessáveis, que
+  // deixam de ser só rota e viram posição de ataque.
+  tentarPisao(inimigo) {
+    const jogador = this.player.body;
+    const alvo = inimigo.body;
+
+    const caindo = jogador.velocity.y > PISAO_VELOCIDADE_MIN;
+    const acimaDoAlvo = jogador.bottom <= alvo.top + PISAO_TOLERANCIA;
+    if (!caindo || !acimaDoAlvo) return false;
+
+    inimigo.levarDano(1);
+    this.player.setVelocityY(PISAO_QUIQUE);
+    this.cameras.main.shake(60, 0.004);
+    return true;
+  }
+
   tocarInimigo(inimigo) {
-    if (!inimigo.perigoso || this.player.isDead || this.player.invulnerable) return;
+    if (!inimigo.vivo || this.player.isDead || this.player.invulnerable) return;
+
+    // O pisão é testado ANTES do dano por contato: quem cai em cima de um
+    // Slime não deveria se machucar nele.
+    if (this.tentarPisao(inimigo)) return;
+
+    if (!inimigo.perigoso) return;
     // Padrão Contato: o dano vem do encostar, sem telegraph
     // (04_BESTIARIO_MACRO.md, Seção 3).
     this.player.hurt(this.player.x < inimigo.x ? -1 : 1);

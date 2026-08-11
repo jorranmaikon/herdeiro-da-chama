@@ -67,25 +67,30 @@ export const LOBO = {
   vida: 3,
   dano: 1,          // teto de um Comum, mesmo sendo mais ameaçador que o Slime
 
-  padrao: 'telegrafado',
+  // Padrão Contato, não Telegrafado.
+  //
+  // A mordida parada não ficou boa: o Lobo travava na frente do jogador e a
+  // animação de ataque não lia como ameaça. Um predador que corre em cima já
+  // comunica o perigo pela própria corrida — e Contato é padrão legítimo do
+  // 04_BESTIARIO_MACRO.md Seção 3 para inimigo rápido e previsível.
+  //
+  // O que ele ensina passa a ser posicionamento e ritmo de ataque, não leitura
+  // de antecipação. Essa lição fica com o Urso, que tem telegraph de verdade.
+  padrao: 'contato',
   locomocao: 'andar',
   velocidadePatrulha: 55,
-  velocidade: 150,        // perseguindo — é assim que ele encurta distância
-  duracaoBoteMs: 300,     // a mordida, executada PARADO
-  alcanceDeteccao: 340,
-  // Ele só morde coladinho. Quem se aproxima é a corrida; o golpe não avança
-  // um pixel, senão o Lobo "surfa" na direção do jogador.
-  alcanceBote: 78,
-  telegrafoMs: 420,       // tempo parado, recuado, antes de avançar
-  recuperacaoMs: 620,     // a abertura do jogador, depois do bote
+  velocidade: 165,        // rápido: é a corrida que ameaça
+  alcanceDeteccao: 380,
+  alcanceBote: 0,         // nunca entra em modo de golpe
+  duracaoBoteMs: 0,
+  telegrafoMs: 0,
+  recuperacaoMs: 0,
   esperaAlertaMs: 200,
   knockback: 200,
 
   animacoes: {
     idle:     { quadros: [0, 1, 2, 3], taxa: 5, repetir: -1 },
     correr:   { quadros: [4, 5, 6, 7], taxa: 11, repetir: -1 },
-    preparar: { quadros: [9, 10], taxa: 5, repetir: -1 },
-    bote:     { quadros: [11], taxa: 1 },
     dano:     { quadros: [12, 13], taxa: 10 },
     morte:    { quadros: [14, 15], taxa: 7 },
   },
@@ -160,9 +165,13 @@ export const GOBLIN = {
   // telegraph do Bestiário aplicada a um projétil.
   projetil: {
     textura: 'pedra_bosque',
-    velocidade: 430,
-    gravidade: 620,         // própria, bem mais leve que a do mundo
-    subidaMaxima: 460,      // teto do arco, para não virar tiro vertical
+    // Rápida e com pouca gravidade: a trajetória é quase reta, apontada ao
+    // corpo do jogador. Com gravidade alta a compensação da queda obrigava a
+    // pedra a sair muito para cima, e ela passava por cima de quem estava
+    // logo à frente — parecia que o Goblin mirava o céu.
+    velocidade: 520,
+    gravidade: 150,
+    subidaMaxima: 170,      // teto do arco, para não virar tiro vertical
     vidaMs: 3200,
   },
 
