@@ -3,7 +3,8 @@ import { GAME_HEIGHT, TILE, GROUND_INSET } from '../../../config/gameConfig.js';
 import BiomeSceneBase from '../BiomeSceneBase.js';
 import EnemyCommon from '../../../entities/enemies/EnemyCommon.js';
 import EnemyMiniBoss from '../../../entities/enemies/EnemyMiniBoss.js';
-import { SLIME, LOBO, MORCEGO, GOBLIN, URSO } from '../../../data/enemiesConfig.js';
+import EnemyBoss from '../../../entities/enemies/EnemyBoss.js';
+import { SLIME, LOBO, MORCEGO, GOBLIN, URSO, GUARDIAO } from '../../../data/enemiesConfig.js';
 
 // Alcance da espada. Largura generosa de propósito: a regra do
 // 03_GAMEPLAY_MACRO.md é hurtbox pequena e alcance folgado — o jogo pune
@@ -14,6 +15,11 @@ import { SLIME, LOBO, MORCEGO, GOBLIN, URSO } from '../../../data/enemiesConfig.
 const PISAO_VELOCIDADE_MIN = 40;
 const PISAO_TOLERANCIA = 26;
 const PISAO_QUIQUE = -520;
+
+// Quantos tiles antes do chefe a soleira da arena é marcada. Sem isso, numa
+// arena onde o chefe fica no meio, a trava fecharia no início do segmento e o
+// jogador seria preso muito antes de ver contra o que vai lutar.
+const ARENA_ANTECEDENCIA_TILES = 12;
 
 const ATTACK_W = 84;
 const ATTACK_ABAIXO = 40;  // quanto o golpe desce além dos pés
@@ -153,11 +159,187 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     this.enemies = listas.flatMap(([tiles, cfg, alturaInicial]) =>
       (tiles || []).map((tileX) => this.criarInimigo(tileX, cfg, alturaInicial)));
 
+    if (this.L.GUARDIAO_TILE !== undefined) {
+      this.chefe = this.criarChefe(this.L.GUARDIAO_TILE);
+      this.enemies.push(this.chefe);
+      this.miniBoss = this.chefe;      // reaproveita a trava de arena
+      this.prepararArena(this.L.GUARDIAO_TILE);
+    }
+
     if (this.L.URSO_TILE !== undefined) {
       this.miniBoss = this.criarMiniBoss(this.L.URSO_TILE);
       this.enemies.push(this.miniBoss);
       this.prepararArena(this.L.URSO_TILE);
     }
+  }
+
+  // --------------------------------------------------------------------
+  // Boss (04_BESTIARIO_MACRO.md, Seções 5 e 6)
+  // --------------------------------------------------------------------
+  criarChefe(tileX) {
+    const seg = this.segmentAt(tileX);
+    const chefe = new EnemyBoss(this, tileX * TILE, this.groundTopAt(tileX), GUARDIAO);
+    chefe.setDepth(-1);
+    chefe.patrulharEntre(seg[0] * TILE + TILE, (seg[0] + seg[1]) * TILE - TILE);
+
+    chefe.colisorChao = this.physics.add.collider(chefe, this.solids);
+    chefe.colisores = [];
+    chefe.aoMorrer = () => this.removerInimigo(chefe);
+
+    chefe.aoChamarRaizes = () => this.brotarRaizes(chefe);
+    chefe.aoLancarFolhas = (direcao) => this.lancarFolhas(chefe, direcao);
+    chefe.aoGolpearComGalho = () => this.resolverGalho(chefe);
+    chefe.aoAfundar = () => this.criarSombra(chefe);
+    chefe.aoMoverSombra = () => this.moverSombra(chefe);
+    chefe.aoEmergir = () => this.recolherSombra();
+    chefe.aoImpactar = () => this.resolverImpactoChefe(chefe);
+    chefe.aoVirarFase = () => this.anunciarSegundaFase(chefe);
+    return chefe;
+  }
+
+  // RAÍZES — padrão Área. A marca no chão vem ANTES, e é ela que torna o
+  // ataque justo: o jogador vê onde vai brotar e tem tempo de sair.
+  brotarRaizes(chefe) {
+    const cfg = chefe.cfg.raizes;
+    const inicio = this.player.x - ((cfg.quantidade - 1) / 2) * cfg.espacamento;
+
+    for (let i = 0; i < cfg.quantidade; i++) {
+      const x = inicio + i * cfg.espacamento;
+      const y = this.groundTopAt(Math.floor(x / TILE));
+
+      const marca = this.add
+        .ellipse(x, y, cfg.espacamento * 0.7, 18, 0x2a1d12, 0.75)
+        .setOrigin(0.5, 1)
+        .setDepth(-3);
+      this.tweens.add({ targets: marca, alpha: 0.3, yoyo: true, repeat: -1, duration: 180 });
+
+      this.time.delayedCall(cfg.avisoMs, () => {
+        marca.destroy();
+        this.erguerRaiz(chefe, x, y);
+      });
+    }
+  }
+
+  erguerRaiz(chefe, x, y) {
+    const cfg = chefe.cfg.raizes;
+
+    // A raiz reaproveita a arte dos espinhos do bioma: é o mesmo vocabulário
+    // visual de "isso brota do chão e machuca", e o jogador já sabe lê-lo.
+    const raiz = this.add
+      .image(x, y + 10, 'bosque_espinhos')
+      .setOrigin(0.5, 1)
+      .setScale(1.6)
+      .setTint(0x6b5334)
+      .setDepth(-3);
+
+    this.tweens.add({ targets: raiz, y, duration: 130, ease: 'Back.easeOut' });
+
+    const golpear = () => {
+      if (this.player.isDead || this.player.invulnerable) return;
+      if (Math.abs(this.player.x - x) > cfg.espacamento * 0.45) return;
+      if (this.player.body.bottom < y - cfg.alturaAcerto) return;
+      this.player.hurt(this.player.x < x ? -1 : 1, chefe.cfg.empurrao);
+    };
+
+    golpear();
+    const janela = this.time.addEvent({ delay: 60, repeat: 8, callback: golpear });
+
+    this.time.delayedCall(cfg.duracaoMs, () => {
+      janela.remove();
+      this.tweens.add({
+        targets: raiz, y: y + 20, alpha: 0, duration: 200,
+        onComplete: () => raiz.destroy(),
+      });
+    });
+  }
+
+  // NAVALHADA — padrão Projétil, em três alturas. A resposta é achar a brecha:
+  // uma passa rente ao chão, uma na altura do peito e uma alta.
+  lancarFolhas(chefe, direcao) {
+    const cfg = chefe.cfg.folhas;
+
+    cfg.alturas.forEach((altura, i) => {
+      this.time.delayedCall(i * 90, () => {
+        if (!chefe.vivo) return;
+
+        const folha = this.projeteis.create(
+          chefe.x + direcao * chefe.body.halfWidth,
+          chefe.body.bottom + altura,
+          cfg.textura,
+        );
+        folha.setDepth(-1);
+        folha.body.setAllowGravity(false);
+        folha.setVelocity(direcao * cfg.velocidade, 0);
+        folha.setAngularVelocity(direcao * 720);
+        folha.setData('expiraEm', this.time.now + cfg.vidaMs);
+      });
+    });
+  }
+
+  resolverGalho(chefe) {
+    if (this.player.isDead || this.player.invulnerable) return;
+
+    const corpo = chefe.body;
+    const frente = chefe.flipX ? -1 : 1;
+    const inicio = frente > 0 ? corpo.right : corpo.left - chefe.cfg.larguraGalho;
+    const fim = inicio + chefe.cfg.larguraGalho;
+
+    const alvo = this.player.body;
+    if (alvo.right < Math.min(inicio, fim) || alvo.left > Math.max(inicio, fim)) return;
+    if (alvo.bottom < corpo.top || alvo.top > corpo.bottom) return;
+
+    this.player.hurt(frente, chefe.cfg.empurrao);
+  }
+
+  // MERGULHO — o ataque assinatura. Ele some, e uma sombra corre pelo chão
+  // perseguindo o jogador. A sombra é MAIS LENTA que ele: quem corre escapa,
+  // quem para, não. É ela que decide onde o Guardião vai cair.
+  criarSombra(chefe) {
+    this.sombra = this.add
+      .ellipse(chefe.x, this.groundTopAt(Math.floor(chefe.x / TILE)), 200, 44, 0x101a0e, 0.55)
+      .setOrigin(0.5, 1)
+      .setDepth(-3);
+
+    this.tweens.add({
+      targets: this.sombra, scaleX: 1.12, yoyo: true, repeat: -1, duration: 320,
+    });
+  }
+
+  moverSombra(chefe) {
+    if (!this.sombra) return;
+
+    const passo = chefe.cfg.mergulho.velocidadeSombra * (this.game.loop.delta / 1000);
+    const rumo = Math.sign(this.player.x - this.sombra.x);
+    this.sombra.x += rumo * Math.min(passo, Math.abs(this.player.x - this.sombra.x));
+    this.sombra.y = this.groundTopAt(Math.floor(this.sombra.x / TILE));
+  }
+
+  recolherSombra() {
+    if (!this.sombra) return undefined;
+    const x = this.sombra.x;
+    this.sombra.destroy();
+    this.sombra = null;
+    return x;
+  }
+
+  resolverImpactoChefe(chefe) {
+    this.cameras.main.shake(380, 0.02);
+    this.poeiraDeImpacto(chefe);
+
+    if (this.player.isDead || this.player.invulnerable) return;
+
+    const noAr = !(this.player.body.blocked.down || this.player.body.touching.down);
+    if (noAr) return;
+    if (Math.abs(this.player.x - chefe.x) > chefe.cfg.mergulho.raioImpacto) return;
+
+    this.player.hurt(this.player.x < chefe.x ? -1 : 1, chefe.cfg.empurrao);
+  }
+
+  anunciarSegundaFase(chefe) {
+    this.cameras.main.shake(700, 0.01);
+    this.cameras.main.flash(220, 40, 30, 20);
+    this.poeiraDeImpacto(chefe);
+    this.showNotice('A casca racha');
   }
 
   // --------------------------------------------------------------------
@@ -173,16 +355,17 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     // costuma ficar dentro da própria arena, e uma parede depois dela deixaria
     // um corredor por onde dava para escapar sem lutar.
     const fimTile = Math.min(seg[0] + seg[1], this.L.EXIT_TILE) - 2;
+    const entradaTile = Math.max(seg[0], tileX - ARENA_ANTECEDENCIA_TILES);
 
     this.arena = {
-      entradaX: seg[0] * TILE,
+      entradaX: entradaTile * TILE,
       fimX: fimTile * TILE,
       fechada: false,
     };
 
     // Sinalização: dois marcos de pedra e uma faixa escura no chão marcando a
     // soleira. É o aviso de que dali para frente não se volta.
-    const y = this.groundTopAt(seg[0] + 1);
+    const y = this.groundTopAt(entradaTile);
     [-1, 1].forEach((lado) => {
       this.add
         .rectangle(this.arena.entradaX + lado * 26, y, 16, 78, 0x4a5340)

@@ -67,7 +67,7 @@ def ler_catalogo():
     ser conferido é o arquivo em disco bater com esse número.
     """
     texto = CONFIG.read_text(encoding="utf-8")
-    bloco = texto.split("FOLHAS_DE_INIMIGO")[1]
+    bloco = texto.split("FOLHAS_DE_INIMIGO")[-1]
     return {
         cfg: arquivo
         for arquivo, cfg in re.findall(r"arquivo:\s*'(\w+)',\s*cfg:\s*(\w+)", bloco)

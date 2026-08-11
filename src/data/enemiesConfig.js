@@ -274,10 +274,108 @@ export const URSO = {
   },
 };
 
+// Guardião da Floresta — BOSS do Bosque Esmeralda
+// (VS_1_BOSQUE_ESMERALDA.md, Seção 6).
+//
+// Quatro padrões, todos já vistos em versão menor no bioma: raízes e impacto
+// são Área (a pisada do Urso), a navalhada é Projétil (a pedra do Goblin) e o
+// golpe de galho é Golpe Telegrafado (a patada do Urso). O que muda é a
+// combinação — um chefe não introduz padrão que o jogador nunca viu.
+//
+// O ciclo de ataques é FIXO, não sorteado. Com quatro ataques aleatórios a luta
+// vira ruído: o jogador não monta expectativa e tudo parece injusto. Com ordem
+// fixa ele aprende a sequência, e a dificuldade passa a ser executar a resposta
+// certa em vez de adivinhar.
+export const GUARDIAO = {
+  textura: 'guardiao_bosque',
+  celula: 512,
+  colunas: 5,
+  linhas: 9,
+
+  corpoW: 250,
+  corpoH: 330,
+
+  vida: 24,
+  dano: 1,
+  empurrao: 2.6,
+
+  padrao: 'telegrafado',    // só machuca durante o próprio golpe
+  velocidade: 90,
+  alcanceDeteccao: 1400,    // a arena inteira
+  alcanceGalho: 330,        // colado: o galho substitui o padrão da vez
+  esperaAlertaMs: 400,
+  knockback: 60,            // enorme e pesado, quase não recua
+
+  larguraGalho: 200,        // o braço é longo: a faixa de acerto acompanha
+  alturaQueda: 620,
+
+  raizes: {
+    quantidade: 5,
+    espacamento: 150,
+    avisoMs: 700,           // a marca fica no chão antes de a raiz brotar
+    duracaoMs: 900,
+    alturaAcerto: 90,
+  },
+
+  folhas: {
+    textura: 'folha_navalha',
+    quantidade: 3,
+    velocidade: 430,
+    alturas: [-40, -150, -260],  // três alturas: achar a brecha é a resposta
+    vidaMs: 3200,
+  },
+
+  mergulho: {
+    // A sombra é MAIS LENTA que o jogador (340px/s). Quem corre escapa; quem
+    // para, não. É a razão de ser do ataque.
+    velocidadeSombra: 210,
+    raioImpacto: 420,
+  },
+
+  viradaEmVida: 0.5,
+  duracaoViradaMs: 1400,
+  aceleracaoFase2: 0.72,
+
+  fase1: {
+    ciclo: ['raizes', 'navalhada', 'mergulho', 'navalhada'],
+    telegrafo: { raizes: 720, navalhada: 560, galho: 460, mergulho: 640 },
+    duracao: { raizes: 900, navalhada: 520, galho: 620 },
+    perseguicaoMs: 1600,    // quanto tempo a sombra persegue antes da queda
+    recuperacaoMs: 1100,    // a abertura do jogador
+  },
+
+  // Segunda fase: nenhum padrão novo. Raízes e navalhada passam a vir coladas
+  // e o mergulho fica mais frequente.
+  fase2: {
+    ciclo: ['raizes', 'navalhada', 'mergulho', 'raizes', 'navalhada', 'mergulho'],
+    telegrafo: { raizes: 620, navalhada: 460, galho: 400, mergulho: 560 },
+    duracao: { raizes: 800, navalhada: 460, galho: 560 },
+    perseguicaoMs: 2000,
+    recuperacaoMs: 850,
+  },
+
+  // Folha de 5 colunas por 9 linhas — 45 quadros.
+  // A linha do golpe de galho veio com 4 quadros; a célula 24 fica vazia.
+  animacoes: {
+    idle:         { quadros: [0, 1, 2, 3, 4], taxa: 4, repetir: -1 },
+    andar:        { quadros: [5, 6, 7, 8, 9], taxa: 7, repetir: -1 },
+    raizes:       { quadros: [10, 11, 12, 13, 14], taxa: 7 },
+    navalhada:    { quadros: [15, 16, 17, 18, 19], taxa: 9 },
+    galho:        { quadros: [20, 21, 22, 23], taxa: 9 },
+    afundar:      { quadros: [25, 26, 27, 28, 29], taxa: 8 },
+    despencar:    { quadros: [30, 31, 32, 33, 34], taxa: 9 },
+    virada:       { quadros: [35, 36, 37, 38, 39], taxa: 5 },
+    enfraquecido: { quadros: [40, 41], taxa: 3, repetir: -1 },
+    dano:         { quadros: [42], taxa: 8 },
+    morte:        { quadros: [43, 44], taxa: 4 },
+  },
+};
+
 export const FOLHAS_DE_INIMIGO = [
   { arquivo: 'slime', cfg: SLIME },
   { arquivo: 'lobo', cfg: LOBO },
   { arquivo: 'morcego', cfg: MORCEGO },
   { arquivo: 'goblin', cfg: GOBLIN },
   { arquivo: 'urso', cfg: URSO },
+  { arquivo: 'guardiao', cfg: GUARDIAO },
 ];

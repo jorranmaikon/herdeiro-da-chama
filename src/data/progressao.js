@@ -15,6 +15,7 @@ export const FASES = [
   { id: 'bosque_1', regiao: 'bosque', nome: 'Orla do Bosque', cena: 'BosqueFase1Scene' },
   { id: 'bosque_2', regiao: 'bosque', nome: 'Subida das Raízes', cena: 'BosqueFase2Scene' },
   { id: 'bosque_3', regiao: 'bosque', nome: 'Mata Cerrada', cena: 'BosqueFase3Scene' },
+  { id: 'bosque_4', regiao: 'bosque', nome: 'Raízes da Árvore', cena: 'BosqueBossScene' },
 ];
 
 /** Índice de uma fase na ordem oficial. */
