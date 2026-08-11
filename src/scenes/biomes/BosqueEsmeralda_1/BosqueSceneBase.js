@@ -276,9 +276,14 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     );
     pedra.setAngularVelocity(direcao * 320);
 
-    // Some sozinha depois de um tempo: sem isso, toda pedra errada continuaria
-    // viva no mundo até o fim da fase.
-    this.time.delayedCall(cfg.vidaMs, () => pedra.destroy());
+    // A pedra errada segue viagem até SAIR DA TELA — não evapora no ar perto
+    // do jogador, que é o que um temporizador fixo fazia. Quem desvia vê o
+    // tiro passar reto e ir embora, e isso é informação: ele entende para onde
+    // o Goblin mira.
+    //
+    // O limite de tempo continua existindo, mas só como rede de segurança para
+    // uma pedra que nunca saia do quadro.
+    pedra.setData('expiraEm', this.time.now + cfg.vidaMs);
   }
 
   criarInimigo(tileX, cfg, alturaInicial = 0) {
@@ -731,7 +736,27 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   }
 
   /** Chamada pelas fases a cada frame, depois de updateCommon. */
+  // Limpa projéteis que já saíram de vista. Sem isso cada pedra errada ficaria
+  // viva até o fim da fase, e o Goblin atira a cada segundo e meio.
+  updateProjeteis(time) {
+    const camera = this.cameras.main;
+    const margem = 120;
+
+    this.projeteis.getChildren().slice().forEach((pedra) => {
+      if (!pedra.active) return;
+
+      const foraDaTela = pedra.x < camera.scrollX - margem
+        || pedra.x > camera.scrollX + camera.width + margem
+        || pedra.y > GAME_HEIGHT + margem
+        || pedra.y < -margem;
+
+      if (foraDaTela || time > pedra.getData('expiraEm')) pedra.destroy();
+    });
+  }
+
   updateEnemies(time) {
+    this.updateProjeteis(time);
+
     // Libera o próximo golpe só quando o ataque termina. Sem isso um único
     // golpe acertaria a cada frame em que a animação está no ar.
     if (!this.player.isAttacking) this.golpeConsumido.clear();
