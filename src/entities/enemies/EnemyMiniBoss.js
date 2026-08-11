@@ -80,6 +80,9 @@ export default class EnemyMiniBoss extends Enemy {
   }
 
   conduzirPadrao(time, player) {
+    // O atropelo é testado a cada frame enquanto ele avança.
+    if (this.investindo) this.aoInvestir?.();
+
     if (time < this.proximaAcaoEm) {
       // Telegraph: parado. Um ataque telegrafado em movimento não telegrafa.
       this.setVelocityX(0);
@@ -105,6 +108,7 @@ export default class EnemyMiniBoss extends Enemy {
         this.setVelocityX(this.direcao * this.cfg.velocidadeInvestida);
         this.tocar('investir', true);
         this.proximaAcaoEm = time + this.cfg.duracaoInvestidaMs;
+        this.investindo = true;
       } else {
         // A pisada acontece no lugar e bate em ÁREA ao redor.
         this.setVelocityX(0);
@@ -117,6 +121,7 @@ export default class EnemyMiniBoss extends Enemy {
 
     this.setVelocityX(0);
     this.golpeAtivo = false;
+    this.investindo = false;
     this.estado = ESTADO.RECUPERAR;
     this.proximaAcaoEm = time + this.cfg.recuperacaoMs;
     this.tocar('idle');

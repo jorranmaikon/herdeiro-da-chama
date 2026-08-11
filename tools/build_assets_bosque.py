@@ -436,11 +436,16 @@ def build_parallax():
 INIMIGOS = {
     "slime":   {"chave": "slime", "celula": 128, "alt": 104, "ancora": "chao"},
     "lobo":    {"chave": "lobo", "celula": 192, "alt": 116, "ancora": "chao"},
-    "morcego": {"chave": "morcego", "celula": 128, "alt": 104, "ancora": "centro"},
+    # O morcego e pequeno: dois punhos. Com a moldura fora do calculo de
+    # escala ele passou a ser medido pelo proprio corpo, e 104px o deixavam do
+    # tamanho de um cachorro.
+    "morcego": {"chave": "morcego", "celula": 128, "alt": 76, "ancora": "centro"},
     "goblin":  {"chave": "goblin", "celula": 160, "alt": 128, "ancora": "chao"},
     # O Urso é Mini-Boss: a escala é o que sinaliza a categoria antes de
     # qualquer barra de vida (07_DIRECAO_ARTE_AUDIO.md, Seção 5).
-    "urso":    {"chave": "urso", "celula": 320, "alt": 208, "ancora": "chao"},
+    # Mini-Boss: 25% maior que a primeira versao. A escala e o que sinaliza a
+    # categoria antes de qualquer barra de vida.
+    "urso":    {"chave": "urso", "celula": 400, "alt": 260, "ancora": "chao"},
 }
 
 
@@ -448,6 +453,43 @@ INIMIGOS = {
 # lado. A IA quase sempre deixa uma pata, um focinho ou a ponta de uma cauda
 # passando da linha da grade; cortar rente perderia esse pedaço.
 INVASAO = 0.16
+
+
+def _remover_grade(folha, lado):
+    """Apaga a grade desenhada na folha, quando ela existe.
+
+    Algumas folhas trazem as linhas da grade em preto. Tentar reconhecê-las
+    depois, como "mancha oca", saiu caro: um lobo correndo e um morcego de asas
+    abertas também ocupam quase toda a célula preenchendo pouco dela, e quatro
+    quadros foram descartados junto — daí o Lobo piscando.
+
+    A grade é identificada pelo que ela é de fato: uma LINHA INTEIRA de pixels
+    escuros e opacos, exatamente sobre a divisa das células. Nenhum personagem
+    produz uma linha cheia atravessando a folha de ponta a ponta.
+    """
+    out = folha.copy()
+    alt, larg = out.shape[:2]
+    lum = out[:, :, :3].mean(axis=2)
+    op = out[:, :, 3] > 0
+    tolerancia = max(3, round(lado * 0.02))
+
+    def linha_de_grade(valores_op, valores_lum):
+        if valores_op.mean() < 0.6:
+            return False
+        escuros = valores_lum[valores_op]
+        return escuros.size > 0 and escuros.mean() < 85
+
+    for k in range(5):  # 4 divisas internas + as duas bordas externas
+        for base in ({0, alt} if k == 0 else {k * lado}):
+            for y in range(max(0, base - tolerancia), min(alt, base + tolerancia + 1)):
+                if linha_de_grade(op[y], lum[y]):
+                    out[y, :, 3] = 0
+        for base in ({0, larg} if k == 0 else {k * lado}):
+            for x in range(max(0, base - tolerancia), min(larg, base + tolerancia + 1)):
+                if linha_de_grade(op[:, x], lum[:, x]):
+                    out[:, x, 3] = 0
+
+    return out
 
 
 def _extrair_quadro(folha, lado, linha, coluna, margem):
@@ -495,25 +537,6 @@ def _extrair_quadro(folha, lado, linha, coluna, margem):
         area = int((lbl[fatia] == i).sum())
         if area < area_minima:
             continue  # rótulo escrito, respingo, carimbo
-
-        alt = fatia[0].stop - fatia[0].start
-        larg = fatia[1].stop - fatia[1].start
-
-        # Descarta a MOLDURA da célula.
-        #
-        # Algumas folhas trazem a grade desenhada como linhas pretas. Elas
-        # formam uma única mancha que envolve a célula inteira, tem área
-        # respeitável e fica centrada exatamente onde o personagem deveria
-        # estar — então passava pelos dois filtros acima e virava uma caixa
-        # preta em volta do bicho. Pior: sendo a mancha mais alta da folha,
-        # era ela que definia a escala, e o personagem encolhia dentro dela.
-        #
-        # O que a denuncia é ser OCA: ocupa quase toda a janela mas preenche
-        # pouquíssimo da própria caixa delimitadora.
-        preenchimento = area / max(1, alt * larg)
-        ocupa_tudo = alt > 0.85 * janela.shape[0] and larg > 0.85 * janela.shape[1]
-        if ocupa_tudo and preenchimento < 0.30:
-            continue
 
         cy = (fatia[0].start + fatia[0].stop) / 2
         cx = (fatia[1].start + fatia[1].stop) / 2
@@ -576,6 +599,7 @@ def _fatiar_inimigo(nome, cfg):
     """
     folha = _rgba_croma(UPLOADS / SRC[cfg["chave"]], isolar=False)
     lado = folha.shape[0] // 4
+    folha = _remover_grade(folha, lado)
 
     # Apara a moldura de cada célula.
     #

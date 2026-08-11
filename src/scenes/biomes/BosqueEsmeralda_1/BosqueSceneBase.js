@@ -165,6 +165,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     // Não é contato: acerta mesmo quem está ao lado, e é por isso que ela
     // obriga o jogador a se afastar em vez de rolar por baixo.
     urso.aoPisar = () => this.resolverPisada(urso);
+    urso.aoInvestir = () => this.resolverInvestida(urso);
     return urso;
   }
 
@@ -209,6 +210,25 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     });
   }
 
+  // A investida ATROPELA: acerta quem estiver na faixa horizontal do corpo,
+  // sem exigir sobreposição exata de corpos. Depender do overlap de física
+  // fazia o Urso passar por dentro do jogador em alguns frames sem registrar
+  // nada, porque a 620px/s ele percorre 10px por frame e o teste podia cair
+  // fora da janela de contato.
+  resolverInvestida(urso) {
+    if (this.player.isDead || this.player.invulnerable) return;
+
+    const corpo = urso.body;
+    const alcance = corpo.halfWidth + urso.cfg.larguraInvestida;
+    if (Math.abs(this.player.body.center.x - corpo.center.x) > alcance) return;
+
+    // Verticalmente basta haver sobreposição: ele é alto o bastante para pegar
+    // quem está pulando baixo.
+    if (this.player.body.bottom < corpo.top || this.player.body.top > corpo.bottom) return;
+
+    this.player.hurt(this.player.body.center.x < corpo.center.x ? -1 : 1);
+  }
+
   // --------------------------------------------------------------------
   // Projéteis
   // --------------------------------------------------------------------
@@ -219,11 +239,10 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     const cfg = origem.cfg.projetil;
     const corpo = origem.body;
 
-    const pedra = this.projeteis.create(
-      origem.x + direcao * corpo.halfWidth,
-      corpo.center.y - 10,
-      cfg.textura,
-    );
+    const saidaX = origem.x + direcao * corpo.halfWidth;
+    const saidaY = corpo.center.y - 10;
+
+    const pedra = this.projeteis.create(saidaX, saidaY, cfg.textura);
     pedra.setDepth(-1);
 
     // A gravidade do MUNDO é a do personagem — pesada de propósito, para o
@@ -232,7 +251,22 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     // própria, bem mais leve, que é o que produz um arco longo.
     pedra.body.setAllowGravity(false);
     pedra.body.setGravityY(cfg.gravidade);
-    pedra.setVelocity(direcao * cfg.velocidade, cfg.impulsoVertical);
+
+    // MIRA o centro do corpo do jogador, em vez de um impulso vertical fixo.
+    //
+    // Com impulso fixo a pedra saía sempre para cima, no mesmo arco, e passava
+    // por cima de quem estava logo à frente. Aqui o tempo de voo sai da
+    // distância horizontal e a velocidade vertical é a que faz a pedra chegar
+    // naquela altura nesse tempo, já descontando a queda pela gravidade —
+    // continua sendo um arco, mas um arco que aponta para alguém.
+    const alvo = this.player.body.center;
+    const tempo = Math.max(0.25, Math.abs(alvo.x - saidaX) / cfg.velocidade);
+    const vy = (alvo.y - saidaY) / tempo - (cfg.gravidade * tempo) / 2;
+
+    pedra.setVelocity(
+      direcao * cfg.velocidade,
+      Phaser.Math.Clamp(vy, -cfg.subidaMaxima, cfg.subidaMaxima),
+    );
     pedra.setAngularVelocity(direcao * 320);
 
     // Some sozinha depois de um tempo: sem isso, toda pedra errada continuaria

@@ -102,8 +102,8 @@ export const MORCEGO = {
   textura: 'morcego_bosque',
   celula: 128,
 
-  corpoW: 72,
-  corpoH: 54,
+  corpoW: 56,
+  corpoH: 40,
 
   vida: 1,          // frágil: a dificuldade dele é a posição, não a resistência
   dano: 1,
@@ -161,8 +161,8 @@ export const GOBLIN = {
   projetil: {
     textura: 'pedra_bosque',
     velocidade: 430,
-    impulsoVertical: -210,  // sobe antes de cair: é isso que faz o arco
-    gravidade: 300,         // própria, bem mais leve que a do mundo
+    gravidade: 620,         // própria, bem mais leve que a do mundo
+    subidaMaxima: 460,      // teto do arco, para não virar tiro vertical
     vidaMs: 3200,
   },
 
@@ -186,31 +186,37 @@ export const GOBLIN = {
 // Sem fases de vida: é Mini-Boss, não Boss (04_BESTIARIO_MACRO.md, Seção 5).
 export const URSO = {
   textura: 'urso_bosque',
-  celula: 320,
+  celula: 400,
 
-  corpoW: 230,
-  corpoH: 130,
+  corpoW: 290,
+  corpoH: 164,
 
   vida: 12,
   dano: 1,          // ~1,5 unidade na régua do 05_BALANCEAMENTO.md, Seção 2
 
   padrao: 'telegrafado',    // só machuca durante o próprio golpe
-  velocidade: 95,
-  alcanceDeteccao: 900,     // a arena inteira
-  alcanceAtaque: 420,       // daqui para dentro ele já ataca
+  velocidade: 110,
+  alcanceDeteccao: 1200,    // a arena inteira
+  alcanceAtaque: 620,       // daqui para dentro ele já ataca
 
   // Perto ele pisa, longe ele investe. Entre os dois, alterna.
-  alcancePisada: 190,
-  alcanceInvestida: 300,
-  previsaoS: 0.30,          // mira onde o jogador vai estar, não onde está
+  alcancePisada: 300,
+  alcanceInvestida: 380,
+  previsaoS: 0.34,          // mira onde o jogador vai estar, não onde está
 
-  telegrafoInvestidaMs: 700,
-  velocidadeInvestida: 460,
-  duracaoInvestidaMs: 620,
+  telegrafoInvestidaMs: 620,
+  // A investida é uma travessia: ele atravessa boa parte da arena e machuca
+  // quem estiver no caminho. 620px/s por 1s cobre quase 10 tiles.
+  velocidadeInvestida: 620,
+  duracaoInvestidaMs: 1000,
+  larguraInvestida: 70,     // folga lateral do atropelo, além do corpo
 
-  telegrafoPisadaMs: 780,   // mais longo: é o ataque de área, precisa ser lido
+  telegrafoPisadaMs: 720,   // mais longo: é o ataque de área, precisa ser lido
   duracaoPisadaMs: 420,
-  raioPisada: 260,          // bem maior que o corpo: obriga a se afastar
+  // Quase toda a largura da tela. O ataque não é para ser desviado andando —
+  // a saída é estar NO AR quando ele acontece, e é isso que o telegraph longo
+  // dá tempo de fazer.
+  raioPisada: 560,
 
   recuperacaoMs: 900,       // a abertura do jogador, depois de cada padrão
   esperaAlertaMs: 300,
