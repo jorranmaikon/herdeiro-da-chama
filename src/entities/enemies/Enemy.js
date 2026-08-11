@@ -72,8 +72,26 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     // pela gravidade.
     if (cfg.locomocao === 'voar') this.body.setAllowGravity(false);
 
+    this.conferirFolha(scene);
     this.criarAnimacoes(scene);
     this.tocar('idle');
+  }
+
+  // Um sprite fatiado na régua errada não gera erro no Phaser: ele só devolve
+  // quadros vazios, e o inimigo fica invisível em silêncio. Aqui isso vira uma
+  // mensagem clara no console — barato, e evita caçar o problema no escuro.
+  conferirFolha(scene) {
+    const textura = scene.textures.get(this.cfg.textura);
+    const fonte = textura.getSourceImage();
+    const esperado = fonte.width / 4;
+
+    if (esperado !== this.cfg.celula) {
+      console.error(
+        `[${this.cfg.textura}] folha de ${fonte.width}px daria célula de `
+        + `${esperado}px, mas a configuração diz ${this.cfg.celula}px. `
+        + 'O inimigo vai aparecer vazio.',
+      );
+    }
   }
 
   /** Define o trecho em que o inimigo pode andar. */

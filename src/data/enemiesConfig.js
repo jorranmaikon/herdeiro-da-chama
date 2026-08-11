@@ -242,3 +242,21 @@ export const URSO = {
     morte:    { quadros: [14, 15], taxa: 6 },
   },
 };
+
+// Catálogo de folhas de sprite dos inimigos — FONTE ÚNICA do tamanho de célula.
+//
+// Antes o tamanho aparecia duas vezes: aqui, em `celula`, e de novo no
+// PreloadScene, no frameWidth do carregamento. Quando o Urso cresceu, um foi
+// atualizado e o outro não; o Phaser passou a fatiar a folha na régua errada e
+// os quadros viraram pedaços vazios. O inimigo sumiu do jogo sem uma linha de
+// erro no console.
+//
+// Com o carregamento derivando desta lista, os dois números não têm como
+// divergir: existe só um.
+export const FOLHAS_DE_INIMIGO = [
+  { arquivo: 'slime', cfg: SLIME },
+  { arquivo: 'lobo', cfg: LOBO },
+  { arquivo: 'morcego', cfg: MORCEGO },
+  { arquivo: 'goblin', cfg: GOBLIN },
+  { arquivo: 'urso', cfg: URSO },
+];

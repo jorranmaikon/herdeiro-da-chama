@@ -54,14 +54,18 @@ def ler_configuracoes():
     return saida
 
 
-def ler_preload():
-    """Mapeia chave de textura -> (arquivo, célula) declarados no carregamento."""
-    texto = PRELOAD.read_text(encoding="utf-8")
+def ler_catalogo():
+    """Mapeia NOME da configuração -> arquivo, a partir de FOLHAS_DE_INIMIGO.
+
+    O tamanho de célula não é lido aqui de propósito: ele existe num lugar só,
+    na própria configuração, e o carregamento deriva dela. O que ainda precisa
+    ser conferido é o arquivo em disco bater com esse número.
+    """
+    texto = CONFIG.read_text(encoding="utf-8")
+    bloco = texto.split("FOLHAS_DE_INIMIGO")[1]
     return {
-        chave: (arquivo, int(celula))
-        for chave, arquivo, celula in re.findall(
-            r"\['(\w+)',\s*'(\w+)',\s*(\d+)\]", texto
-        )
+        cfg: arquivo
+        for arquivo, cfg in re.findall(r"arquivo:\s*'(\w+)',\s*cfg:\s*(\w+)", bloco)
     }
 
 
@@ -77,24 +81,17 @@ def quadro_vazio(imagem, celula, indice):
 
 def validar():
     configuracoes = ler_configuracoes()
-    preload = ler_preload()
+    catalogo = ler_catalogo()
     problemas = []
 
     for nome, cfg in configuracoes.items():
-        chave = cfg["textura"]
         celula = cfg["celula"]
 
-        if chave not in preload:
-            problemas.append(f"{nome}: textura '{chave}' nao e carregada no PreloadScene")
+        if nome not in catalogo:
+            problemas.append(f"{nome}: nao esta em FOLHAS_DE_INIMIGO, entao nunca e carregado")
             continue
 
-        arquivo, celula_preload = preload[chave]
-        if celula_preload != celula:
-            problemas.append(
-                f"{nome}: PreloadScene fatia em {celula_preload}px, "
-                f"mas a configuracao diz {celula}px"
-            )
-
+        arquivo = catalogo[nome]
         caminho = SPRITES / f"{arquivo}.png"
         if not caminho.exists():
             problemas.append(f"{nome}: arquivo {caminho.name} nao existe")

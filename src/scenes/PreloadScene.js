@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FOLHAS_DE_INIMIGO } from '../data/enemiesConfig.js';
 import { GAME_WIDTH, GAME_HEIGHT, PLAYER_CELL } from '../config/gameConfig.js';
 
 // Versão dos assets. INCREMENTAR sempre que qualquer arquivo em public/assets
@@ -9,7 +10,7 @@ import { GAME_WIDTH, GAME_HEIGHT, PLAYER_CELL } from '../config/gameConfig.js';
 // continua mostrando arte velha mesmo depois do deploy. Foi o que aconteceu
 // com o Ancião: sprite e retrato novos no repositório, versão anterior na
 // tela.
-const ASSET_VERSION = 25;
+const ASSET_VERSION = 26;
 
 // Carrega todos os assets do jogo (08_ARQUITETURA_TECNICA.md, Seção 4).
 export default class PreloadScene extends Phaser.Scene {
@@ -73,16 +74,12 @@ export default class PreloadScene extends Phaser.Scene {
       this.load.image(chave, this.url(`assets/props/bosque/${arquivo}.png`)),
     );
 
-    [
-      ['slime_bosque', 'slime', 128],
-      ['lobo_bosque', 'lobo', 192],
-      ['morcego_bosque', 'morcego', 128],
-      ['goblin_bosque', 'goblin', 160],
-      ['urso_bosque', 'urso', 400],
-    ].forEach(([chave, arquivo, celula]) =>
-      this.load.spritesheet(chave, this.url(`assets/sprites/bosque/${arquivo}.png`), {
-        frameWidth: celula,
-        frameHeight: celula,
+    // O tamanho de célula vem da configuração do inimigo, nunca repetido aqui:
+    // ver FOLHAS_DE_INIMIGO em data/enemiesConfig.js.
+    FOLHAS_DE_INIMIGO.forEach(({ arquivo, cfg }) =>
+      this.load.spritesheet(cfg.textura, this.url(`assets/sprites/bosque/${arquivo}.png`), {
+        frameWidth: cfg.celula,
+        frameHeight: cfg.celula,
       }),
     );
 
