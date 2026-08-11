@@ -58,6 +58,7 @@ SRC = {
     "morcego":     "96f37403eecd6bcab50476d9ffb7fefad4db385f.png",
     "goblin":      "aa88770641e89ac17862fcb33f67bba1a44e05a8.png",
     "urso":        "2FA393A4-0688-4816-B17B-0D2670C78654.png",
+    "guardiao":    "04222942-01A1-4302-A8C9-F31EC5086D8F.png",
 }
 
 # Alturas de exibição, em px de tela.
@@ -447,6 +448,14 @@ INIMIGOS = {
     # sinaliza a categoria antes de qualquer barra de vida.
     "urso":    {"chave": "urso", "celula": 400, "alt": 300, "ancora": "chao",
                 "colunas": 4, "linhas": 7},
+    # O Boss veio com linhas de tamanhos diferentes — 5 quadros em quase todas,
+    # 6 em duas. Grade fixa não serve, então este usa fatiamento LIVRE.
+    # A arte veio roxo/vinho, fora da paleta do bioma. O giro de matiz traz o
+    # corpo para o marrom-esverdeado da floresta sem redesenhar nada — a forma
+    # e o sombreado continuam sendo os do artista.
+    "guardiao": {"chave": "guardiao", "celula": 512, "alt": 400, "ancora": "chao",
+                 "livre": True, "colunas": 6, "linhas": 8,
+                 "matiz": 0.28, "saturacao": 0.75},
 }
 
 
@@ -595,6 +604,140 @@ def build_inimigos():
         _fatiar_inimigo(nome, cfg)
 
 
+def _girar_matiz(rgba, delta, saturacao):
+    """Gira o matiz de todos os pixels opacos e reduz a saturação.
+
+    Serve para trazer uma arte que veio fora da paleta de volta ao bioma sem
+    perder a forma nem o sombreado. Não é retoque: é uma transformação uniforme,
+    então o desenho continua sendo o do artista — só a cor muda.
+    """
+    if not delta:
+        return rgba
+
+    dados = rgba.astype(float)
+    rgb = dados[:, :, :3] / 255.0
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+
+    maximo = rgb.max(axis=2)
+    minimo = rgb.min(axis=2)
+    amplitude = maximo - minimo
+
+    matiz = np.zeros_like(maximo)
+    tem_cor = amplitude > 1e-6
+    sel = (maximo == r) & tem_cor
+    matiz[sel] = ((g - b)[sel] / amplitude[sel]) % 6
+    sel = (maximo == g) & tem_cor
+    matiz[sel] = ((b - r)[sel] / amplitude[sel]) + 2
+    sel = (maximo == b) & tem_cor
+    matiz[sel] = ((r - g)[sel] / amplitude[sel]) + 4
+
+    matiz = (matiz / 6.0 + delta) % 1.0
+    sat = np.where(maximo > 0, amplitude / np.maximum(maximo, 1e-6), 0) * saturacao
+    val = maximo
+
+    setor = np.floor(matiz * 6)
+    fracao = matiz * 6 - setor
+    p_ = val * (1 - sat)
+    q_ = val * (1 - fracao * sat)
+    t_ = val * (1 - (1 - fracao) * sat)
+    setor = setor.astype(int) % 6
+
+    saida = np.zeros_like(rgb)
+    combinacoes = [(val, t_, p_), (q_, val, p_), (p_, val, t_),
+                   (p_, q_, val), (t_, p_, val), (val, p_, q_)]
+    for indice, canais in enumerate(combinacoes):
+        sel = setor == indice
+        saida[sel] = np.stack(canais, axis=-1)[sel]
+
+    dados[:, :, :3] = np.clip(saida * 255, 0, 255)
+    return dados.astype(np.uint8)
+
+
+def _montar_livre(nome, cfg, folha, colunas, linhas):
+    """Monta a folha final a partir de quadros de tamanhos irregulares.
+
+    Todos são reduzidos pelo MESMO fator e apoiados na mesma linha de base —
+    reduzir cada um pela própria altura faria o personagem crescer e encolher
+    durante a animação, e ancorar pelo centro o faria flutuar.
+
+    A grade de saída é regular mesmo quando a de entrada não é: linhas com
+    menos quadros deixam células vazias no fim, que as animações simplesmente
+    não citam.
+    """
+    folha = _girar_matiz(folha, cfg.get("matiz", 0), cfg.get("saturacao", 1))
+    grupos = _quadros_livres(folha)
+    celula = cfg["celula"]
+
+    altura_maxima = max(q.shape[0] for linha in grupos for q in linha)
+    escala = cfg["alt"] / altura_maxima
+
+    destino = OUT / "sprites" / BIOMA
+    destino.mkdir(parents=True, exist_ok=True)
+    final = Image.new("RGBA", (celula * colunas, celula * linhas), (0, 0, 0, 0))
+
+    for y, linha in enumerate(grupos[:linhas]):
+        for x, quadro in enumerate(linha[:colunas]):
+            h = max(1, round(quadro.shape[0] * escala))
+            w = max(1, round(quadro.shape[1] * escala))
+            im = Image.fromarray(quadro, "RGBA").resize((w, h), Image.LANCZOS)
+            final.alpha_composite(
+                im, (x * celula + (celula - w) // 2, y * celula + celula - 6 - h))
+
+    final.save(destino / f"{nome}.png")
+    contagem = ", ".join(str(len(l)) for l in grupos)
+    print(f"  {nome}: fatiamento livre, {len(grupos)} linhas ({contagem}) "
+          f"-> grade {colunas}x{linhas} de {celula}px")
+
+
+def _quadros_livres(folha, tolerancia=120, area_minima=0.0004):
+    """Separa os quadros por CONTEÚDO, sem assumir grade regular.
+
+    Um gerador não entrega colunas alinhadas de forma confiável: a folha do
+    Boss veio com 5 quadros em seis linhas e 6 em duas. Cortar na régua
+    partiria personagens ao meio.
+
+    Aqui cada mancha opaca é um quadro. As manchas são agrupadas em linhas pelo
+    centro vertical e ordenadas da esquerda para a direita dentro de cada
+    linha — que é exatamente a ordem de leitura da animação.
+    """
+    lbl, n = ndimage.label(folha[:, :, 3] > 0)
+    if n == 0:
+        return []
+
+    limite = area_minima * folha.shape[0] * folha.shape[1]
+    caixas = []
+    for i, fatia in enumerate(ndimage.find_objects(lbl), start=1):
+        if fatia is None:
+            continue
+        if int((lbl[fatia] == i).sum()) < limite:
+            continue  # respingo ou carimbo
+        caixas.append((fatia, i))
+
+    caixas.sort(key=lambda c: (c[0][0].start + c[0][0].stop) / 2)
+
+    linhas, atual = [], [caixas[0]]
+    for caixa in caixas[1:]:
+        centro = (caixa[0][0].start + caixa[0][0].stop) / 2
+        anterior = (atual[-1][0][0].start + atual[-1][0][0].stop) / 2
+        if abs(centro - anterior) < tolerancia:
+            atual.append(caixa)
+        else:
+            linhas.append(atual)
+            atual = [caixa]
+    linhas.append(atual)
+
+    saida = []
+    for linha in linhas:
+        linha.sort(key=lambda c: c[0][1].start)
+        quadros = []
+        for fatia, rotulo in linha:
+            recorte = folha[fatia].copy()
+            recorte[:, :, 3] = np.where(lbl[fatia] == rotulo, recorte[:, :, 3], 0)
+            quadros.append(_apagar_carimbo(_recortar(recorte)))
+        saida.append(quadros)
+    return saida
+
+
 def _fatiar_inimigo(nome, cfg):
     """Fatia uma folha 4x4 de inimigo e normaliza os quadros.
 
@@ -611,6 +754,10 @@ def _fatiar_inimigo(nome, cfg):
     linhas = cfg.get("linhas", 4)
 
     folha = _rgba_croma(UPLOADS / SRC[cfg["chave"]], isolar=False)
+
+    if cfg.get("livre"):
+        return _montar_livre(nome, cfg, folha, colunas, linhas)
+
     lado = folha.shape[1] // colunas
     folha = _remover_grade(folha, lado, colunas, linhas)
 
