@@ -321,11 +321,12 @@ export const GUARDIAO = {
     textura: 'folha_navalha',
     quantidade: 3,
     velocidade: 430,
-    // Três alturas com 176px entre elas. O jogador tem 104px e no ápice do
-    // pulo ocupa de -176 a -72: passar entre a lâmina de baixo e a do meio
-    // exige acertar o tempo, mas cabe. Com o espaçamento anterior, de 110px,
-    // não cabia — era um ataque impossível de atravessar.
-    alturas: [-24, -200, -376],
+    // Três alturas com 210px entre elas. O jogador tem 104px de altura e no
+    // ápice do pulo ocupa de -176 a -72: com esse vão sobram uns 30px de folga
+    // de cada lado ao passar entre a primeira e a segunda lâmina. Espaçamentos
+    // menores fecharam a passagem — 110px não cabia de jeito nenhum, e 176
+    // exigia precisão de frame.
+    alturas: [-20, -230, -440],
     vidaMs: 3200,
   },
 
@@ -371,7 +372,14 @@ export const GUARDIAO = {
     navalhada:    { quadros: [20, 21, 22, 23], taxa: 9 },
     galho:        { quadros: [15, 16, 17, 18, 19], taxa: 9 },
     afundar:      { quadros: [25, 26, 27, 28, 29], taxa: 8 },
-    despencar:    { quadros: [30, 31, 32, 33, 34], taxa: 9 },
+    // A queda e o impacto são animações SEPARADAS.
+    //
+    // Juntas, os cinco quadros rodavam em ~550ms enquanto a queda de 620px
+    // leva uns 750ms: os quadros de aterrissagem apareciam com ele ainda no
+    // ar. Agora a queda fica em loop até tocar o chão, e só então o impacto
+    // toca — a animação passa a acompanhar a física em vez de correr sozinha.
+    caindo:       { quadros: [30, 31], taxa: 7, repetir: -1 },
+    aterrar:      { quadros: [32, 33, 34], taxa: 11 },
     virada:       { quadros: [35, 36, 37, 38, 39], taxa: 5 },
     enfraquecido: { quadros: [40, 41], taxa: 3, repetir: -1 },
     dano:         { quadros: [42], taxa: 8 },

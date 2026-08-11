@@ -148,14 +148,21 @@ export default class EnemyBoss extends Enemy {
     this.body.enable = true;
 
     if (alvo !== undefined) {
-      this.x = alvo;
-      this.y = this.scene.groundTopAt(Math.floor(alvo / 64)) - this.cfg.alturaQueda;
+      const alto = this.scene.groundTopAt(Math.floor(alvo / 64)) - this.cfg.alturaQueda;
+
+      // body.reset, e não apenas mudar x/y.
+      //
+      // Mudar a posição do sprite não move o CORPO de física junto: ele
+      // continuava lá embaixo, encostado no chão, e o teste de aterrissagem
+      // disparava no mesmo frame — o dano saía antes de ele cair, enquanto a
+      // animação de queda ainda estava tocando.
+      this.body.reset(alvo, alto);
     }
 
     this.setVelocity(0, 0);
     this.golpeAtivo = false;
     this.faseDoPadrao = 'caindo';
-    this.tocar('despencar', true);
+    this.tocar('caindo', true);
   }
 
   atualizar(player, time) {
@@ -164,9 +171,14 @@ export default class EnemyBoss extends Enemy {
     // Aterrissagem do mergulho, detectada pelo CONTATO com o chão. Tempo fixo
     // erraria: a altura de queda muda conforme onde a sombra parou.
     if (this.faseDoPadrao !== 'caindo' || !this.body) return;
+
+    // Só conta como aterrissagem se ele estava mesmo CAINDO. Sem isso, um
+    // frame em que o corpo ainda não saiu do chão contaria como impacto.
+    if (this.body.velocity.y <= 0) return;
     if (!(this.body.blocked.down || this.body.touching.down)) return;
 
     this.faseDoPadrao = 'golpe';
+    this.tocar('aterrar', true);
     this.aoImpactar?.();
     this.encerrarPadrao(time);
   }
@@ -176,6 +188,17 @@ export default class EnemyBoss extends Enemy {
     this.golpeAtivo = false;
     this.estado = ESTADO.RECUPERAR;
     this.proximaAcaoEm = time + this.tempos.recuperacaoMs * this.ritmo;
+
+    // Depois do impacto o corpo caído fica em quadro: voltar ao 'parado' na
+    // mesma hora apagaria a aterrissagem que acabou de acontecer. A janela de
+    // recuperação é longa o bastante para os dois caberem.
+    if (this.faseDoPadrao === 'golpe' && this.padraoAtual === 'mergulho') {
+      this.scene.time.delayedCall(360, () => {
+        if (this.vivo && this.estado === ESTADO.RECUPERAR) this.tocarParado();
+      });
+      return;
+    }
+
     this.tocarParado();
   }
 
