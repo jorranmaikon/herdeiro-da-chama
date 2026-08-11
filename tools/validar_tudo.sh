@@ -11,6 +11,10 @@ echo "== Sprite sheets de inimigo =="
 python3 tools/validar_inimigos.py
 
 echo
+echo "== Chaves de configuracao de inimigo =="
+node tools/validar_config.mjs
+
+echo
 echo "== Layouts de fase =="
 node tools/validar_layouts.mjs
 

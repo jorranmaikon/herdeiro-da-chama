@@ -338,7 +338,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
   resolverImpactoChefe(chefe) {
     this.cameras.main.shake(380, 0.02);
-    this.poeiraDeImpacto(chefe);
+    this.poeiraDeImpacto(chefe, chefe.cfg.mergulho.raioImpacto);
 
     if (this.player.isDead || this.player.invulnerable) return;
 
@@ -352,7 +352,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   anunciarSegundaFase(chefe) {
     this.cameras.main.shake(700, 0.01);
     this.cameras.main.flash(220, 40, 30, 20);
-    this.poeiraDeImpacto(chefe);
+    this.poeiraDeImpacto(chefe, chefe.cfg.mergulho.raioImpacto);
     this.showNotice('A casca racha');
   }
 
@@ -452,7 +452,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   // agachamento existe justamente para dar tempo de pular.
   resolverImpacto(urso) {
     this.cameras.main.shake(320, 0.016);
-    this.poeiraDeImpacto(urso);
+    this.poeiraDeImpacto(urso, urso.cfg.raioImpacto);
 
     if (this.player.isDead || this.player.invulnerable) return;
 
@@ -466,19 +466,26 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   // Poeira. Três camadas com tempos diferentes, porque uma nuvem única lê como
   // um retângulo crescendo: as nuvens baixas e rápidas dão o impacto, as altas
   // e lentas dão o peso do bicho.
-  poeiraDeImpacto(urso) {
-    const solo = urso.body.bottom - 4;
+  // O RAIO vem por parâmetro, não da configuração do inimigo.
+  //
+  // Antes ela lia `cfg.raioImpacto`, que existe na raiz da configuração do
+  // Urso mas fica aninhado em `mergulho` na do Guardião. Chamada com o Boss,
+  // o raio vinha `undefined`, o tween recebia uma largura indefinida e
+  // derrubava a cena. Um efeito visual não deveria saber a forma da
+  // configuração de quem o chamou.
+  poeiraDeImpacto(origem, raio) {
+    const solo = origem.body.bottom - 4;
     const cor = 0xcdbb95;
 
     [-1, 1].forEach((lado) => {
       // Frente de poeira correndo rente ao chão.
       const frente = this.add
-        .ellipse(urso.x, solo, 40, 22, cor, 0.7)
+        .ellipse(origem.x, solo, 40, 22, cor, 0.7)
         .setOrigin(lado < 0 ? 1 : 0, 1)
         .setDepth(-2);
       this.tweens.add({
         targets: frente,
-        width: urso.cfg.raioImpacto,
+        width: raio,
         height: 46,
         alpha: 0,
         duration: 420,
@@ -490,12 +497,12 @@ export default class BosqueSceneBase extends BiomeSceneBase {
       for (let i = 0; i < 4; i++) {
         const distancia = 70 + i * 90;
         const tufo = this.add
-          .circle(urso.x + lado * 30, solo - 6, 12 + i * 4, cor, 0.55)
+          .circle(origem.x + lado * 30, solo - 6, 12 + i * 4, cor, 0.55)
           .setDepth(-2);
 
         this.tweens.add({
           targets: tufo,
-          x: urso.x + lado * distancia,
+          x: origem.x + lado * distancia,
           y: solo - 30 - i * 14,
           scale: 2.1,
           alpha: 0,
@@ -510,7 +517,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     for (let i = 0; i < 6; i++) {
       const lado = i % 2 ? 1 : -1;
       const pedrinha = this.add
-        .rectangle(urso.x + lado * 20, solo - 8, 6, 6, 0x8c7f63, 0.9)
+        .rectangle(origem.x + lado * 20, solo - 8, 6, 6, 0x8c7f63, 0.9)
         .setDepth(-2);
 
       this.tweens.add({
