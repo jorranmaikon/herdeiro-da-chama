@@ -58,7 +58,7 @@ SRC = {
     "morcego":     "96f37403eecd6bcab50476d9ffb7fefad4db385f.png",
     "goblin":      "aa88770641e89ac17862fcb33f67bba1a44e05a8.png",
     "urso":        "2FA393A4-0688-4816-B17B-0D2670C78654.png",
-    "guardiao":    "04222942-01A1-4302-A8C9-F31EC5086D8F.png",
+    "guardiao":    "4D9D6F64-DED1-427E-8607-526DAADF5B3E.png",
 }
 
 # Alturas de exibição, em px de tela.
@@ -450,12 +450,11 @@ INIMIGOS = {
                 "colunas": 4, "linhas": 7},
     # O Boss veio com linhas de tamanhos diferentes — 5 quadros em quase todas,
     # 6 em duas. Grade fixa não serve, então este usa fatiamento LIVRE.
-    # A arte veio roxo/vinho, fora da paleta do bioma. O giro de matiz traz o
-    # corpo para o marrom-esverdeado da floresta sem redesenhar nada — a forma
-    # e o sombreado continuam sendo os do artista.
+    # Fatiamento livre: a folha do Boss não vem com colunas alinhadas de forma
+    # confiável, e cortar na régua partiria personagens ao meio. Sem giro de
+    # matiz — a segunda rodada já veio na paleta do bioma.
     "guardiao": {"chave": "guardiao", "celula": 512, "alt": 400, "ancora": "chao",
-                 "livre": True, "colunas": 6, "linhas": 8,
-                 "matiz": 0.28, "saturacao": 0.75},
+                 "livre": True, "colunas": 5, "linhas": 9},
 }
 
 
