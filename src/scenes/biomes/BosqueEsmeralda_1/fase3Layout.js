@@ -114,6 +114,14 @@ export const MORCEGOS = [
   33, 43, 63, 75, 91, 108, 119, 133, 144, 164, 180,
 ];
 
+// Goblins: sempre GUARDANDO alguma coisa — um desvio alto, um item de cura,
+// a entrada de um trecho. Nunca no meio do caminho principal, que é onde um
+// atirador vira só imposto de pedágio.
+export const GOBLINS = [46, 80, 105, 158, 190];
+
+// Mini-Boss, no meio da arena plana do fim da fase.
+export const URSO_TILE = 218;
+
 export const CHECKPOINTS = [15, 78, 121, 184];
 
 export const MIRANTE_TILE = 74;

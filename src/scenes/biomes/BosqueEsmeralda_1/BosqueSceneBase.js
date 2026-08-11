@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, TILE, GROUND_INSET } from '../../../config/gameConfig.js';
 import BiomeSceneBase from '../BiomeSceneBase.js';
 import EnemyCommon from '../../../entities/enemies/EnemyCommon.js';
-import { SLIME, LOBO, MORCEGO } from '../../../data/enemiesConfig.js';
+import EnemyMiniBoss from '../../../entities/enemies/EnemyMiniBoss.js';
+import { SLIME, LOBO, MORCEGO, GOBLIN, URSO } from '../../../data/enemiesConfig.js';
 
 // Alcance da espada. Largura generosa de propósito: a regra do
 // 03_GAMEPLAY_MACRO.md é hurtbox pequena e alcance folgado — o jogo pune
@@ -131,10 +132,76 @@ export default class BosqueSceneBase extends BiomeSceneBase {
       [this.L.LOBOS, LOBO, 0],
       // O Morcego começa pendurado, bem acima do chão.
       [this.L.MORCEGOS, MORCEGO, -TILE * 3],
+      [this.L.GOBLINS, GOBLIN, 0],
     ];
+
+    this.projeteis = this.physics.add.group();
 
     this.enemies = listas.flatMap(([tiles, cfg, alturaInicial]) =>
       (tiles || []).map((tileX) => this.criarInimigo(tileX, cfg, alturaInicial)));
+
+    if (this.L.URSO_TILE !== undefined) {
+      this.enemies.push(this.criarMiniBoss(this.L.URSO_TILE));
+    }
+  }
+
+  // --------------------------------------------------------------------
+  // Mini-Boss
+  // --------------------------------------------------------------------
+  criarMiniBoss(tileX) {
+    const seg = this.segmentAt(tileX);
+    const urso = new EnemyMiniBoss(this, tileX * TILE, this.groundTopAt(tileX), URSO);
+    urso.setDepth(-1);
+
+    // Fica no próprio segmento da arena, que é plana e fechada.
+    const margem = TILE;
+    urso.patrulharEntre(seg[0] * TILE + margem, (seg[0] + seg[1]) * TILE - margem);
+
+    urso.colisorChao = this.physics.add.collider(urso, this.solids);
+    urso.colisores = [];
+    urso.aoMorrer = () => this.removerInimigo(urso);
+
+    // A Pisada bate em ÁREA ao redor, com telegraph antes (o quadro erguido).
+    // Não é contato: acerta mesmo quem está ao lado, e é por isso que ela
+    // obriga o jogador a se afastar em vez de rolar por baixo.
+    urso.aoPisar = () => this.resolverPisada(urso);
+    return urso;
+  }
+
+  resolverPisada(urso) {
+    this.cameras.main.shake(260, 0.012);
+
+    if (this.player.isDead || this.player.invulnerable) return;
+    const dx = Math.abs(this.player.x - urso.x);
+    const dy = Math.abs(this.player.y - urso.y);
+    if (dx > urso.cfg.raioPisada || dy > urso.cfg.raioPisada) return;
+
+    this.player.hurt(this.player.x < urso.x ? -1 : 1);
+  }
+
+  // --------------------------------------------------------------------
+  // Projéteis
+  // --------------------------------------------------------------------
+  // A pedra do Goblin descreve um ARCO, não uma linha reta: é o que dá tempo
+  // de reação suficiente para desviar com um pulo, como o Bestiário exige de
+  // qualquer padrão que não seja Contato.
+  lancarProjetil(origem, direcao) {
+    const cfg = origem.cfg.projetil;
+    const corpo = origem.body;
+
+    const pedra = this.projeteis.create(
+      origem.x + direcao * corpo.halfWidth,
+      corpo.center.y - 10,
+      cfg.textura,
+    );
+    pedra.setDepth(-1);
+    pedra.body.setAllowGravity(true);
+    pedra.body.setGravityY(cfg.gravidade);
+    pedra.setVelocity(direcao * cfg.velocidade, -110);
+
+    // Some sozinha depois de um tempo: sem isso, toda pedra errada continuaria
+    // viva no mundo até o fim da fase.
+    this.time.delayedCall(cfg.vidaMs, () => pedra.destroy());
   }
 
   criarInimigo(tileX, cfg, alturaInicial = 0) {
@@ -165,6 +232,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
       inimigo.colisorChao = this.physics.add.collider(inimigo, this.solids);
       inimigo.colisores = [];
       inimigo.aoMorrer = () => this.removerInimigo(inimigo);
+      inimigo.aoAtirar = (direcao) => this.lancarProjetil(inimigo, direcao);
       return inimigo;
   }
 
@@ -533,6 +601,16 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     });
 
     this.golpeConsumido = new Set();
+
+    this.physics.add.overlap(this.player, this.projeteis, (_jogador, pedra) => {
+      if (this.player.isDead || this.player.invulnerable) return;
+      this.player.hurt(this.player.x < pedra.x ? -1 : 1);
+      pedra.destroy();
+    });
+
+    // A pedra se despedaça ao bater no cenário — não atravessa parede nem
+    // fica rolando pelo chão.
+    this.physics.add.collider(this.projeteis, this.solids, (pedra) => pedra.destroy());
 
     // Só o dano por CONTATO usa overlap de física. O golpe é resolvido à mão
     // em resolverGolpe(), com caixa própria.

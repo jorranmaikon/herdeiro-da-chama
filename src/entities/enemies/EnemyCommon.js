@@ -16,6 +16,7 @@ export default class EnemyCommon extends Enemy {
     switch (this.cfg.locomocao) {
       case 'andar': return this.andar(time);
       case 'voar': return this.voar(time, player);
+      case 'guardar': return this.guardar(time, player);
       default: return this.saltar(time);
     }
   }
@@ -95,6 +96,53 @@ export default class EnemyCommon extends Enemy {
     this.setVelocityX(this.direcao * this.cfg.velocidadePatrulha);
     this.setFlipX(this.direcao < 0);
     this.tocar('correr');
+  }
+
+  // --------------------------------------------------------------------
+  // Guardião de Área, com Projétil (Goblin Explorador)
+  // --------------------------------------------------------------------
+  // Não patrulha: fica no posto. Recua quando o jogador chega perto demais —
+  // é o que o obriga a atacar de longe e o que dá sentido a um inimigo de
+  // projétil num jogo de plataforma (04_BESTIARIO_MACRO.md, Seções 1 e 3).
+  guardar(time, player) {
+    if (this.estado === ESTADO.RECUPERAR) {
+      this.setVelocityX(0);
+      if (time >= this.proximaAcaoEm) this.estado = ESTADO.IDLE;
+      return;
+    }
+
+    if (this.estado !== ESTADO.PERSEGUIR) {
+      this.setVelocityX(0);
+      this.tocar('idle');
+      return;
+    }
+
+    this.direcao = player.x < this.x ? -1 : 1;
+    this.setFlipX(this.direcao < 0);
+
+    if (this.distanciaAoJogador < this.cfg.distanciaMinima) {
+      // Perto demais: recua mantendo a guarda, sem virar as costas.
+      this.setVelocityX(-this.direcao * this.cfg.velocidade);
+      this.tocar('recuar');
+      return;
+    }
+
+    this.setVelocityX(0);
+
+    if (time < this.proximaAcaoEm) {
+      this.tocar('idle');
+      return;
+    }
+
+    this.estado = ESTADO.RECUPERAR;
+    this.proximaAcaoEm = time + this.cfg.recargaMs;
+    this.tocar('arremessar', true);
+
+    // A pedra sai no meio da animação, não no primeiro quadro: é o braço que
+    // solta, e soltar antes de recuar o braço tira a antecipação do ataque.
+    this.scene.time.delayedCall(this.cfg.atrasoTiroMs, () => {
+      if (this.vivo) this.aoAtirar?.(this.direcao);
+    });
   }
 
   // --------------------------------------------------------------------

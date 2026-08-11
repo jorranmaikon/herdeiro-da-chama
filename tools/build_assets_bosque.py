@@ -56,6 +56,8 @@ SRC = {
     "slime":       "davinci_especifica__o_t_cnica__folha_de_sprite_de_pixel_ar.png",
     "lobo":        "84c4fc713fd114938d2564e7e3fedcdfaeaae967.png",
     "morcego":     "96f37403eecd6bcab50476d9ffb7fefad4db385f.png",
+    "goblin":      "aa88770641e89ac17862fcb33f67bba1a44e05a8.png",
+    "urso":        "f5399b0938a247abfae91a9146751a80694b19ba.png",
 }
 
 # Alturas de exibição, em px de tela.
@@ -435,7 +437,85 @@ INIMIGOS = {
     "slime":   {"chave": "slime", "celula": 128, "alt": 104, "ancora": "chao"},
     "lobo":    {"chave": "lobo", "celula": 192, "alt": 116, "ancora": "chao"},
     "morcego": {"chave": "morcego", "celula": 128, "alt": 104, "ancora": "centro"},
+    "goblin":  {"chave": "goblin", "celula": 160, "alt": 128, "ancora": "chao"},
+    # O Urso é Mini-Boss: a escala é o que sinaliza a categoria antes de
+    # qualquer barra de vida (07_DIRECAO_ARTE_AUDIO.md, Seção 5).
+    "urso":    {"chave": "urso", "celula": 320, "alt": 208, "ancora": "chao"},
 }
+
+
+# Quanto o recorte de um quadro pode invadir a célula vizinha, em fração do
+# lado. A IA quase sempre deixa uma pata, um focinho ou a ponta de uma cauda
+# passando da linha da grade; cortar rente perderia esse pedaço.
+INVASAO = 0.16
+
+
+def _extrair_quadro(folha, lado, linha, coluna, margem):
+    """Extrai UM personagem da folha, inteiro e sem texto.
+
+    Recortar a célula na régua não funciona por dois motivos:
+
+    1. O desenho transborda para a célula vizinha, e cortar na linha da grade
+       decepa pata, focinho ou cauda.
+    2. Algumas folhas vêm com rótulo escrito em cada célula ("A1", "B2"), que
+       é desenho tanto quanto o personagem e sobreviveria a qualquer corte
+       geométrico.
+
+    Então o recorte é por CONTEÚDO: olha-se uma janela maior que a célula,
+    separam-se as manchas opacas, e fica só aquela cujo centro cai dentro da
+    célula — o personagem daquele quadro. Manchas pequenas demais são rótulo
+    ou respingo e são descartadas; manchas centradas na célula vizinha
+    pertencem ao quadro de lá.
+    """
+    folga = round(lado * INVASAO)
+    y0, y1 = linha * lado, (linha + 1) * lado
+    x0, x1 = coluna * lado, (coluna + 1) * lado
+
+    jy0, jy1 = max(0, y0 - folga), min(folha.shape[0], y1 + folga)
+    jx0, jx1 = max(0, x0 - folga), min(folha.shape[1], x1 + folga)
+    janela = folha[jy0:jy1, jx0:jx1]
+
+    lbl, n = ndimage.label(janela[:, :, 3] > 0)
+    if n == 0:
+        return None
+
+    # Centro da célula dentro das coordenadas da janela.
+    centro_y = (y0 + y1) / 2 - jy0
+    centro_x = (x0 + x1) / 2 - jx0
+    limite_y = lado / 2
+    limite_x = lado / 2
+    area_minima = 0.004 * lado * lado
+
+    manchas = ndimage.find_objects(lbl)
+    escolhida = None
+    melhor = None
+    for i, fatia in enumerate(manchas, start=1):
+        if fatia is None:
+            continue
+        area = int((lbl[fatia] == i).sum())
+        if area < area_minima:
+            continue  # rótulo escrito, respingo, carimbo
+
+        cy = (fatia[0].start + fatia[0].stop) / 2
+        cx = (fatia[1].start + fatia[1].stop) / 2
+        if abs(cy - centro_y) > limite_y or abs(cx - centro_x) > limite_x:
+            continue  # pertence ao quadro vizinho
+
+        # Entre as candidatas, a maior é o personagem.
+        if melhor is None or area > melhor:
+            melhor, escolhida = area, i
+
+    if escolhida is None:
+        return None
+
+    recorte = janela.copy()
+    recorte[:, :, 3] = np.where(lbl == escolhida, recorte[:, :, 3], 0)
+
+    # Segunda passada do carimbo, agora POR QUADRO. Quando a estrela do gerador
+    # cai em cima do personagem ela vira parte da mesma mancha e sobrevive ao
+    # recorte por conteúdo; e medida contra a folha inteira ela é pequena
+    # demais para o limiar de área disparar.
+    return _apagar_carimbo(_recortar(recorte))
 
 
 def _so_maior_mancha(cel):
@@ -484,19 +564,8 @@ def _fatiar_inimigo(nome, cfg):
     # encosta no topo da sua célula — perdia o topo do corpo.
     margem = round(lado * 0.02)
 
-    recortes = []
-    for linha in range(4):
-        for coluna in range(4):
-            cel = folha[linha * lado + margem:(linha + 1) * lado - margem,
-                        coluna * lado + margem:(coluna + 1) * lado - margem]
-            # `_aparar_contorno_escuro` NÃO roda aqui, ao contrário do
-            # terreno. Ela descasca bordas escuras, e o Lobo é um animal
-            # escuro que encosta nas bordas da célula: o focinho e a ponta da
-            # cauda eram lidos como moldura e sumiam. Nos sprites a moldura já
-            # sai pela margem acima, e o resto pela mancha maior.
-            cel = _so_maior_mancha(cel)
-            op = cel[:, :, 3] > 0
-            recortes.append(_recortar(cel) if op.any() else None)
+    recortes = [_extrair_quadro(folha, lado, linha, coluna, margem)
+                for linha in range(4) for coluna in range(4)]
 
     altura_maxima = max(r.shape[0] for r in recortes if r is not None)
     escala = cfg["alt"] / altura_maxima

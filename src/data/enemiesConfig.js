@@ -126,3 +126,97 @@ export const MORCEGO = {
     morte:     { quadros: [14, 15], taxa: 7 },
   },
 };
+
+// Goblin Explorador — Guardião de Área, padrão Projétil
+// (04_BESTIARIO_MACRO.md, Seções 1 e 3).
+//
+// Primeiro inimigo do jogo que ataca à distância. Guarda um ponto em vez de
+// patrulhar, e recua quando o jogador se aproxima — é isso que o obriga a usar
+// o alcance e que dá sentido a um atirador num plataforma.
+//
+// A escala sinaliza a categoria: maior que um Comum, muito menor que o
+// Mini-Boss (07_DIRECAO_ARTE_AUDIO.md, Seção 5).
+export const GOBLIN = {
+  textura: 'goblin_bosque',
+  celula: 160,
+
+  corpoW: 62,
+  corpoH: 96,
+
+  vida: 3,
+  dano: 1,          // teto de qualquer inimigo que não seja chefe
+
+  padrao: 'projetil',
+  locomocao: 'guardar',
+  velocidade: 90,          // usada só para recuar
+  distanciaMinima: 150,    // abaixo disso ele recua em vez de atirar
+  alcanceDeteccao: 420,
+  recargaMs: 1500,
+  atrasoTiroMs: 260,       // a pedra sai no meio da animação, não no início
+  esperaAlertaMs: 260,
+  knockback: 170,
+
+  // A pedra: lenta o bastante para ser desviada com um pulo, que é a regra de
+  // telegraph do Bestiário aplicada a um projétil.
+  projetil: {
+    textura: 'pedra_bosque',
+    velocidade: 300,
+    gravidade: 260,        // arco suave, não linha reta
+    vidaMs: 2600,
+  },
+
+  animacoes: {
+    idle:       { quadros: [0, 1, 2, 3], taxa: 5, repetir: -1 },
+    arremessar: { quadros: [5, 6, 7], taxa: 9 },
+    recuar:     { quadros: [8, 9, 10, 11], taxa: 8, repetir: -1 },
+    dano:       { quadros: [12, 13], taxa: 10 },
+    morte:      { quadros: [14, 15], taxa: 7 },
+  },
+};
+
+// Urso Corrompido — MINI-BOSS do Bosque Esmeralda
+// (VS_1_BOSQUE_ESMERALDA.md, Seção 5).
+//
+// Dois padrões, os dois já vistos em versão menor: a Investida é a do Lobo em
+// escala maior e mais lenta, e a Pisada é o primeiro ataque de Área do bioma.
+// Nenhum padrão inédito — a regra do Bestiário é que um chefe não introduz
+// padrão que o jogador nunca viu.
+//
+// Sem fases de vida: é Mini-Boss, não Boss (04_BESTIARIO_MACRO.md, Seção 5).
+export const URSO = {
+  textura: 'urso_bosque',
+  celula: 320,
+
+  corpoW: 230,
+  corpoH: 130,
+
+  vida: 12,
+  dano: 1,          // ~1,5 unidade na régua do 05_BALANCEAMENTO.md, Seção 2
+
+  velocidade: 95,
+  alcanceDeteccao: 900,     // a arena inteira
+  alcanceAtaque: 260,
+
+  telegrafoInvestidaMs: 700,
+  velocidadeInvestida: 460,
+  duracaoInvestidaMs: 620,
+
+  telegrafoPisadaMs: 780,   // mais longo: é o ataque de área, precisa ser lido
+  duracaoPisadaMs: 420,
+  raioPisada: 210,
+
+  recuperacaoMs: 900,       // a abertura do jogador, depois de cada padrão
+  esperaAlertaMs: 300,
+  knockback: 120,           // pesado: quase não recua
+
+  animacoes: {
+    idle:     { quadros: [0, 1, 2, 3], taxa: 5, repetir: -1 },
+    andar:    { quadros: [0, 1, 2, 3], taxa: 8, repetir: -1 },
+    preparar: { quadros: [4, 5, 6], taxa: 5, repetir: -1 },
+    investir: { quadros: [7], taxa: 1 },
+    erguer:   { quadros: [8, 9], taxa: 4, repetir: -1 },
+    pisar:    { quadros: [10, 11], taxa: 9 },
+    dano:     { quadros: [12, 13], taxa: 9 },
+    morte:    { quadros: [14, 15], taxa: 6 },
+  },
+};
