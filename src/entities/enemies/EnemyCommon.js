@@ -49,12 +49,13 @@ export default class EnemyCommon extends Enemy {
   // recuperação é a abertura que o jogador precisa aprender a explorar.
   andar(time) {
     if (this.estado === ESTADO.RECUPERAR) {
-      // O bote precisa PERCORRER a distância. Zerar a velocidade já no frame
-      // seguinte ao disparo transformava o ataque num passo curto e lento — o
-      // Lobo saía andando na direção do jogador em vez de avançar.
+      // Durante o golpe ele fica PARADO. Deslizar para a frente enquanto
+      // ataca faz o inimigo "surfar" — a mordida é um movimento no lugar, e
+      // quem se aproxima é a corrida, antes do golpe.
+      this.setVelocityX(0);
       if (time < this.boteAte) return;
 
-      this.setVelocityX(0);
+      this.golpeAtivo = false;
       if (time >= this.proximaAcaoEm) this.estado = ESTADO.IDLE;
       return;
     }
@@ -66,7 +67,8 @@ export default class EnemyCommon extends Enemy {
         this.setVelocityX(0);
         return;
       }
-      this.setVelocityX(this.direcao * this.cfg.velocidadeBote);
+      this.setVelocityX(0);
+      this.golpeAtivo = true;
       this.tocar('bote', true);
       this.estado = ESTADO.RECUPERAR;
       this.boteAte = time + this.cfg.duracaoBoteMs;

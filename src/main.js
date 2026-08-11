@@ -10,6 +10,7 @@ import VilaMapaScene from './scenes/VilaMapaScene.js';
 import Fase1Scene from './scenes/biomes/Vila_0/Fase1Scene.js';
 import Fase2Scene from './scenes/biomes/Vila_0/Fase2Scene.js';
 import BosqueFase1Scene from './scenes/biomes/BosqueEsmeralda_1/BosqueFase1Scene.js';
+import BosqueFase3Scene from './scenes/biomes/BosqueEsmeralda_1/BosqueFase3Scene.js';
 import BosqueFase2Scene from './scenes/biomes/BosqueEsmeralda_1/BosqueFase2Scene.js';
 import ChronicleScene from './scenes/ChronicleScene.js';
 import DialogueOverlay from './scenes/DialogueOverlay.js';
@@ -43,6 +44,7 @@ const game = new Phaser.Game({
     Fase2Scene,
     BosqueFase1Scene,
     BosqueFase2Scene,
+    BosqueFase3Scene,
     DialogueOverlay,
   ],
 });

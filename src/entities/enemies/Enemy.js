@@ -57,6 +57,12 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.direcao = -1;
     this.proximaAcaoEm = 0;
 
+    // Inimigo de padrão Contato machuca sempre que encosta; um de padrão Golpe
+    // Telegrafado só machuca durante o próprio golpe (04_BESTIARIO_MACRO.md,
+    // Seção 3). Sem essa distinção o Lobo daria dano só por passar por perto,
+    // e o telegraph não teria função nenhuma.
+    this.golpeAtivo = cfg.padrao !== 'telegrafado';
+
     // Limites de patrulha. Vêm de fora porque quem sabe onde o chão acaba é a
     // cena, não o inimigo — sem isso ele patrulha para dentro de um vão e cai.
     this.minX = x;
@@ -225,6 +231,11 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(duracao, () => {
       if (this.active) this.clearTint();
     });
+  }
+
+  /** Se o contato com este inimigo causa dano neste instante. */
+  get perigoso() {
+    return this.vivo && this.golpeAtivo;
   }
 
   get vivo() {

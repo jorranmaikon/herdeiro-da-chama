@@ -67,15 +67,15 @@ export const LOBO = {
   vida: 3,
   dano: 1,          // teto de um Comum, mesmo sendo mais ameaçador que o Slime
 
+  padrao: 'telegrafado',
   locomocao: 'andar',
   velocidadePatrulha: 55,
-  velocidade: 130,        // perseguindo
-  velocidadeBote: 620,    // o bote em si: rápido o bastante para acertar
-  duracaoBoteMs: 260,     // quanto tempo ele mantém essa velocidade
+  velocidade: 150,        // perseguindo — é assim que ele encurta distância
+  duracaoBoteMs: 300,     // a mordida, executada PARADO
   alcanceDeteccao: 340,
-  // Curto de propósito. Com 170px ele telegrafava do outro lado da tela e o
-  // bote acabava antes de chegar perto — dava para andar até ele sem risco.
-  alcanceBote: 110,
+  // Ele só morde coladinho. Quem se aproxima é a corrida; o golpe não avança
+  // um pixel, senão o Lobo "surfa" na direção do jogador.
+  alcanceBote: 78,
   telegrafoMs: 420,       // tempo parado, recuado, antes de avançar
   recuperacaoMs: 620,     // a abertura do jogador, depois do bote
   esperaAlertaMs: 200,

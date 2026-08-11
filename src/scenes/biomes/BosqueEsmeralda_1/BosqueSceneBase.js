@@ -249,7 +249,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   }
 
   tocarInimigo(inimigo) {
-    if (!inimigo.vivo || this.player.isDead || this.player.invulnerable) return;
+    if (!inimigo.perigoso || this.player.isDead || this.player.invulnerable) return;
     // Padrão Contato: o dano vem do encostar, sem telegraph
     // (04_BESTIARIO_MACRO.md, Seção 3).
     this.player.hurt(this.player.x < inimigo.x ? -1 : 1);
