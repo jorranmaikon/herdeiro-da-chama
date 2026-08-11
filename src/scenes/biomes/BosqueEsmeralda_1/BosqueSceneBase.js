@@ -72,6 +72,12 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
   finishPhase() {
     if (this.finished) return;
+
+    // Sem matar o Mini-Boss não se sai da fase. A parede da frente já impede
+    // chegar aqui, mas a trava explícita cobre qualquer caminho que eu não
+    // tenha previsto — a saída é o prêmio, não um lugar por onde se passa.
+    if (this.miniBoss && this.miniBoss.vivo) return;
+
     this.finished = true;
     this.concluirFase();
 
@@ -148,8 +154,73 @@ export default class BosqueSceneBase extends BiomeSceneBase {
       (tiles || []).map((tileX) => this.criarInimigo(tileX, cfg, alturaInicial)));
 
     if (this.L.URSO_TILE !== undefined) {
-      this.enemies.push(this.criarMiniBoss(this.L.URSO_TILE));
+      this.miniBoss = this.criarMiniBoss(this.L.URSO_TILE);
+      this.enemies.push(this.miniBoss);
+      this.prepararArena(this.L.URSO_TILE);
     }
+  }
+
+  // --------------------------------------------------------------------
+  // Arena do Mini-Boss (04_BESTIARIO_MACRO.md, Seção 7)
+  // --------------------------------------------------------------------
+  // Arena fechada, sem fuga, e sinalizada ANTES da entrada. As duas coisas são
+  // exigidas pelo Bestiário, e a segunda importa tanto quanto a primeira: o
+  // jogador precisa poder decidir se entra, em vez de ser trancado de surpresa.
+  prepararArena(tileX) {
+    const seg = this.segmentAt(tileX);
+
+    // A parede da frente fica antes da SAÍDA, não no fim do segmento: a saída
+    // costuma ficar dentro da própria arena, e uma parede depois dela deixaria
+    // um corredor por onde dava para escapar sem lutar.
+    const fimTile = Math.min(seg[0] + seg[1], this.L.EXIT_TILE) - 2;
+
+    this.arena = {
+      entradaX: seg[0] * TILE,
+      fimX: fimTile * TILE,
+      fechada: false,
+    };
+
+    // Sinalização: dois marcos de pedra e uma faixa escura no chão marcando a
+    // soleira. É o aviso de que dali para frente não se volta.
+    const y = this.groundTopAt(seg[0] + 1);
+    [-1, 1].forEach((lado) => {
+      this.add
+        .rectangle(this.arena.entradaX + lado * 26, y, 16, 78, 0x4a5340)
+        .setOrigin(0.5, 1)
+        .setDepth(-6);
+    });
+    this.add
+      .rectangle(this.arena.entradaX, y, 10, TILE * 5, 0x1d2a1c, 0.35)
+      .setOrigin(0.5, 1)
+      .setDepth(-7);
+  }
+
+  atualizarArena() {
+    const arena = this.arena;
+    if (!arena || arena.fechada) return;
+    if (this.player.x < arena.entradaX + TILE) return;
+
+    arena.fechada = true;
+
+    // Paredes invisíveis nas duas pontas. Só a de trás precisaria existir para
+    // impedir a fuga, mas sem a da frente daria para atravessar a arena
+    // correndo e sair pelo outro lado sem lutar.
+    arena.paredes = [
+      this.addSolid(arena.entradaX - TILE, 0, TILE, GAME_HEIGHT),
+      this.addSolid(arena.fimX, 0, TILE, GAME_HEIGHT),
+    ];
+
+    this.cameras.main.shake(240, 0.008);
+    this.showNotice('Algo bloqueia a passagem');
+  }
+
+  abrirArena() {
+    const arena = this.arena;
+    if (!arena || !arena.fechada || arena.aberta) return;
+
+    arena.aberta = true;
+    arena.paredes.forEach((parede) => parede.destroy());
+    this.showNotice('O caminho se abre');
   }
 
   // --------------------------------------------------------------------
@@ -420,6 +491,9 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
     const i = this.enemies.indexOf(inimigo);
     if (i !== -1) this.enemies.splice(i, 1);
+
+    // A saída da fase só libera quando o Mini-Boss cai.
+    if (inimigo === this.miniBoss) this.abrirArena();
 
     inimigo.once('destroy', () => {
       if (inimigo.colisorChao) this.physics.world.removeCollider(inimigo.colisorChao);
@@ -794,6 +868,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
 
   updateEnemies(time) {
     this.updateProjeteis(time);
+    this.atualizarArena();
 
     // Libera o próximo golpe só quando o ataque termina. Sem isso um único
     // golpe acertaria a cada frame em que a animação está no ar.
