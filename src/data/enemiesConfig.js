@@ -250,6 +250,12 @@ export const URSO = {
   duracaoRugidoMs: 900,
   aceleracaoAposRugido: 0.8,
 
+  // Empurrão forte ao acertar. Ele é lento de propósito, e sem afastar o
+  // jogador dava para ficar colado espancando: cada golpe tomado custava pouco
+  // porque a próxima janela dele vinha longe. Com o empurrão, levar dano custa
+  // também a distância percorrida de volta — a punição vira tempo, não só vida.
+  empurrao: 2.8,
+
   recuperacaoMs: 1150,      // a abertura do jogador, depois de cada padrão
   esperaAlertaMs: 300,
   knockback: 120,           // pesado: quase não recua

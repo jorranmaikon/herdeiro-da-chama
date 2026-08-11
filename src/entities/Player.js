@@ -17,6 +17,9 @@ const IFRAME_MS = 900;
 // outro.
 const KNOCKBACK_X = 260;
 const KNOCKBACK_Y = -320;
+
+// Janela em que o input horizontal é ignorado depois de um empurrão forte.
+const EMPURRAO_SEM_CONTROLE_MS = 260;
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'protagonista', 0);
@@ -36,6 +39,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.isAttacking = false;
     this.isDead = false;
     this.invulnerable = false;
+    this.semControleAte = 0;
     this.lastGroundedAt = 0;
     this.jumpBufferedAt = -9999;
 
@@ -82,6 +86,16 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   moveHorizontal(input, onGround) {
+    // Arremessado por um golpe pesado: nem input nem atrito agem por um
+    // instante. É o que faz o empurrão de fato afastar, em vez de morrer em
+    // dois frames de fricção do chão.
+    if (this.scene.time.now < this.semControleAte) {
+      this.setAccelerationX(0);
+      this.setDragX(0);
+      return;
+    }
+    this.setDragX(PLAYER_TUNING.drag);
+
     // Ataque ancora o jogador no chão — golpe curto, sem deslizar.
     if (this.isAttacking && onGround) {
       this.setAccelerationX(0);
@@ -150,11 +164,27 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   // morte por conta própria.
   //
   // @param {number} direcao -1 empurra para a esquerda, +1 para a direita
-  hurt(direcao = 1) {
+  // @param {number} forca   multiplicador do empurrão (1 = padrão)
+  //
+  // A força existe para chefes. Um inimigo lento e pesado precisa AFASTAR o
+  // jogador ao acertar, senão dá para ficar colado trocando golpes e vencer
+  // no braço — o empurrão é o que devolve a distância e obriga a reaproximar,
+  // que é onde o padrão de ataque volta a valer.
+  hurt(direcao = 1, forca = 1) {
     if (this.isDead || this.invulnerable) return;
     this.invulnerable = true;
 
-    this.setVelocity(direcao * KNOCKBACK_X, KNOCKBACK_Y);
+    this.setVelocity(direcao * KNOCKBACK_X * forca, KNOCKBACK_Y * (forca > 1 ? 1.15 : 1));
+
+    // Durante um empurrão forte o controle fica suspenso por um instante.
+    //
+    // Sem isso o atrito do chão come quase todo o recuo em poucos frames — o
+    // jogador voltava menos de dois tiles e continuava colado. Com a suspensão
+    // ele é de fato arremessado, e o custo de levar dano passa a ser também o
+    // caminho de volta.
+    if (forca > 1.5) {
+      this.semControleAte = this.scene.time.now + EMPURRAO_SEM_CONTROLE_MS;
+    }
 
     const piscar = this.scene.tweens.add({
       targets: this,
@@ -188,6 +218,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.isDead = false;
     this.isAttacking = false;
     this.invulnerable = false;
+    this.semControleAte = 0;
     this.setAlpha(1);
     this.setVelocity(0, 0);
     this.setAcceleration(0, 0);

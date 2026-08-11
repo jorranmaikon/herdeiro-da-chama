@@ -263,7 +263,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     if (noAr) return;
 
     if (Math.abs(this.player.x - urso.x) > urso.cfg.raioImpacto) return;
-    this.player.hurt(this.player.x < urso.x ? -1 : 1);
+    this.player.hurt(this.player.x < urso.x ? -1 : 1, urso.cfg.empurrao);
   }
 
   // Poeira. Três camadas com tempos diferentes, porque uma nuvem única lê como
@@ -342,7 +342,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     if (alvo.right < Math.min(inicio, fim) || alvo.left > Math.max(inicio, fim)) return;
     if (alvo.bottom < corpo.top || alvo.top > corpo.bottom) return;
 
-    this.player.hurt(frente);
+    this.player.hurt(frente, urso.cfg.empurrao);
   }
 
   // --------------------------------------------------------------------
@@ -542,7 +542,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     if (!inimigo.perigoso) return;
     // Padrão Contato: o dano vem do encostar, sem telegraph
     // (04_BESTIARIO_MACRO.md, Seção 3).
-    this.player.hurt(this.player.x < inimigo.x ? -1 : 1);
+    this.player.hurt(this.player.x < inimigo.x ? -1 : 1, inimigo.cfg.empurrao ?? 1);
   }
 
   // Alterna entre as 3 variações de tile. Com uma variação só, a mesma
