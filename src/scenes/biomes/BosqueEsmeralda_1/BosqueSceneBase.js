@@ -695,8 +695,17 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   buildArvoreMirante() {
     if (this.L.MIRANTE_TILE === undefined) return;
 
+    // Ancorada no chão MAIS BAIXO da fase, não no chão do mirante.
+    //
+    // O mirante fica num ponto alto, e apoiar a árvore ali deixava a base dela
+    // pairando bem acima do terreno vizinho — como ela é camada de fundo e
+    // aparece sobre trechos inteiros da fase, a base precisa ficar abaixo de
+    // qualquer chão visível. O extra enterra as raízes em vez de encostá-las.
+    const linhaMaisBaixa = Math.max(...this.L.GROUND_SEGMENTS.map(([, , row]) => row));
+    const base = linhaMaisBaixa * TILE + GROUND_INSET + TILE;
+
     this.add
-      .image(this.L.MIRANTE_TILE * TILE, this.groundTopAt(this.L.MIRANTE_TILE), 'bosque_arvore')
+      .image(this.L.MIRANTE_TILE * TILE, base, 'bosque_arvore')
       .setOrigin(0.5, 1)
       // Parallax bem lento: quanto mais devagar a camada anda, mais distante
       // ela parece. É o que dá escala à árvore sem precisar aumentá-la.

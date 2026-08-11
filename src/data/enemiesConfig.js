@@ -219,10 +219,13 @@ export const URSO = {
   // sem trocar dano, e trocar dano com um chefe de 14 de vida contra um
   // jogador de poucas unidades não é dificuldade — é aritmética perdida.
   // A janela de ataque do jogador é o telegrafo mais a recuperação.
-  telegrafoGarraMs: 520,
-  duracaoGarraMs: 620,
-  velocidadeGarra: 170,     // o avanço durante o golpe
-  larguraGarra: 90,
+  telegrafoGarraMs: 430,
+  duracaoGarraMs: 560,
+  // Avanço maior durante o golpe, e faixa de acerto mais longa: o braço dele é
+  // curto para o tamanho do corpo, e sem compensar isso a patada passava sem
+  // encostar em quem estava logo à frente.
+  velocidadeGarra: 280,
+  larguraGarra: 130,
 
   // --- Salto ----------------------------------------------------------
   // Substitui a investida reta. O arco cai ONDE o jogador está em vez de
