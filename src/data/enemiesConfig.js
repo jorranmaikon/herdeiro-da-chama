@@ -204,7 +204,7 @@ export const URSO = {
   corpoW: 300,
   corpoH: 175,
 
-  vida: 14,
+  vida: 10,
   dano: 1,          // ~1,5 unidade na régua do 05_BALANCEAMENTO.md, Seção 2
 
   velocidade: 120,
@@ -215,19 +215,29 @@ export const URSO = {
   // poste, e era isso que o fazia errar o alvo. O corpo continua avançando
   // durante todo o golpe.
   alcanceGarra: 300,
-  telegrafoGarraMs: 260,    // curto: é o ataque de punição, quase sem aviso
-  duracaoGarraMs: 520,
-  velocidadeGarra: 230,     // o avanço durante o golpe
+  // Tempos generosos. Com telegrafo curto era impossível encaixar um golpe
+  // sem trocar dano, e trocar dano com um chefe de 14 de vida contra um
+  // jogador de poucas unidades não é dificuldade — é aritmética perdida.
+  // A janela de ataque do jogador é o telegrafo mais a recuperação.
+  telegrafoGarraMs: 520,
+  duracaoGarraMs: 620,
+  velocidadeGarra: 170,     // o avanço durante o golpe
   larguraGarra: 90,
 
   // --- Salto ----------------------------------------------------------
   // Substitui a investida reta. O arco cai ONDE o jogador está em vez de
   // passar reto por ele, e a aterrissagem já é o ataque de área.
   alcanceSalto: 340,        // daqui para longe ele salta
-  telegrafoSaltoMs: 620,    // agachado, comprimindo — o aviso
-  impulsoSalto: -900,
-  velocidadeSalto: 380,
-  previsaoS: 0.42,          // mira onde o jogador vai estar, não onde está
+  telegrafoSaltoMs: 900,    // agachado, comprimindo — o aviso
+
+  // DISTÂNCIA FIXA, sem mira preditiva.
+  //
+  // O salto deixa de perseguir para virar algo que se pode LER: ele sempre
+  // cobre a mesma distância na direção em que o jogador estava, e sempre com
+  // o mesmo arco. Assim dá para correr por baixo dele no tempo certo, que é a
+  // esquiva que a luta precisava ter.
+  distanciaSalto: 480,
+  impulsoSalto: -1050,      // 0,95s no ar e 251px de altura: cabe passar embaixo
   raioImpacto: 520,         // a onda de choque da aterrissagem
 
   // --- Rugido ---------------------------------------------------------
@@ -235,9 +245,9 @@ export const URSO = {
   // entre ataques encurtam.
   rugidoEmVida: 0.5,
   duracaoRugidoMs: 900,
-  aceleracaoAposRugido: 0.7,
+  aceleracaoAposRugido: 0.8,
 
-  recuperacaoMs: 820,       // a abertura do jogador, depois de cada padrão
+  recuperacaoMs: 1150,      // a abertura do jogador, depois de cada padrão
   esperaAlertaMs: 300,
   knockback: 120,           // pesado: quase não recua
 

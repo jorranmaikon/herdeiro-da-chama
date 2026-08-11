@@ -113,21 +113,24 @@ export default class EnemyMiniBoss extends Enemy {
   }
 
   decolar(player) {
-    // Mira onde o jogador VAI ESTAR. Sem isso bastava andar para o lado
-    // durante o agachamento e o salto caía no vazio.
-    const alvoX = player.x + player.body.velocity.x * this.cfg.previsaoS;
-    this.direcao = alvoX < this.x ? -1 : 1;
+    // Direção decidida na DECOLAGEM, distância sempre a mesma.
+    //
+    // Nada de mira preditiva: um salto que persegue não pode ser esquivado por
+    // leitura, só por sorte. Com alcance fixo o jogador aprende onde ele vai
+    // cair e pode correr por baixo no tempo certo.
+    this.direcao = player.x < this.x ? -1 : 1;
     this.setFlipX(this.direcao < 0);
 
-    // A velocidade horizontal é a necessária para cobrir a distância no tempo
-    // que ele vai passar no ar, limitada pelo máximo do bicho — um urso não
-    // acelera indefinidamente só porque o alvo está longe.
     const tempoDeVoo = (2 * Math.abs(this.cfg.impulsoSalto)) / this.scene.physics.world.gravity.y;
-    const distancia = Math.abs(alvoX - this.x);
-    const velocidade = Math.min(this.cfg.velocidadeSalto, distancia / tempoDeVoo);
+    const velocidade = this.cfg.distanciaSalto / tempoDeVoo;
 
     this.setVelocity(this.direcao * velocidade, this.cfg.impulsoSalto);
     this.noAr = true;
+
+    // NO AR ele não machuca por encostar. É isso que abre a esquiva por baixo:
+    // o corpo passa por cima do jogador sem consequência, e o perigo é só o
+    // impacto da aterrissagem, que tem onda de choque e telegraph próprios.
+    this.golpeAtivo = false;
     this.tocar('saltar', true);
   }
 
@@ -141,6 +144,7 @@ export default class EnemyMiniBoss extends Enemy {
     if (this.noAr && tocouChao) {
       this.noAr = false;
       this.setVelocityX(0);
+      this.golpeAtivo = true;   // volta a ser perigoso ao tocar o chão
       this.tocar('aterrar', true);
       this.aoAterrar?.();
       this.proximaAcaoEm = time + 220;
