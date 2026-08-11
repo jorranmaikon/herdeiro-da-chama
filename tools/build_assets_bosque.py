@@ -57,7 +57,7 @@ SRC = {
     "lobo":        "84c4fc713fd114938d2564e7e3fedcdfaeaae967.png",
     "morcego":     "96f37403eecd6bcab50476d9ffb7fefad4db385f.png",
     "goblin":      "aa88770641e89ac17862fcb33f67bba1a44e05a8.png",
-    "urso":        "f5399b0938a247abfae91a9146751a80694b19ba.png",
+    "urso":        "2FA393A4-0688-4816-B17B-0D2670C78654.png",
 }
 
 # Alturas de exibição, em px de tela.
@@ -443,9 +443,10 @@ INIMIGOS = {
     "goblin":  {"chave": "goblin", "celula": 160, "alt": 128, "ancora": "chao"},
     # O Urso é Mini-Boss: a escala é o que sinaliza a categoria antes de
     # qualquer barra de vida (07_DIRECAO_ARTE_AUDIO.md, Seção 5).
-    # Mini-Boss: 25% maior que a primeira versao. A escala e o que sinaliza a
-    # categoria antes de qualquer barra de vida.
-    "urso":    {"chave": "urso", "celula": 400, "alt": 260, "ancora": "chao"},
+    # Mini-Boss: sete linhas de animacao em vez de quatro. A escala e o que
+    # sinaliza a categoria antes de qualquer barra de vida.
+    "urso":    {"chave": "urso", "celula": 400, "alt": 300, "ancora": "chao",
+                "colunas": 4, "linhas": 7},
 }
 
 
@@ -455,7 +456,7 @@ INIMIGOS = {
 INVASAO = 0.16
 
 
-def _remover_grade(folha, lado):
+def _remover_grade(folha, lado, colunas, linhas):
     """Apaga a grade desenhada na folha, quando ela existe.
 
     Algumas folhas trazem as linhas da grade em preto. Tentar reconhecê-las
@@ -486,15 +487,17 @@ def _remover_grade(folha, lado):
         # Linha desenhada tem cor uniforme; pelo de animal, não.
         return float(escuros.std()) < 16
 
-    for k in range(5):  # 4 divisas internas + as duas bordas externas
-        for base in ({0, alt} if k == 0 else {k * lado}):
-            for y in range(max(0, base - tolerancia), min(alt, base + tolerancia + 1)):
-                if linha_de_grade(op[y], lum[y]):
-                    out[y, :, 3] = 0
-        for base in ({0, larg} if k == 0 else {k * lado}):
-            for x in range(max(0, base - tolerancia), min(larg, base + tolerancia + 1)):
-                if linha_de_grade(op[:, x], lum[:, x]):
-                    out[:, x, 3] = 0
+    for k in range(linhas + 1):
+        base = k * lado
+        for y in range(max(0, base - tolerancia), min(alt, base + tolerancia + 1)):
+            if linha_de_grade(op[y], lum[y]):
+                out[y, :, 3] = 0
+
+    for k in range(colunas + 1):
+        base = k * lado
+        for x in range(max(0, base - tolerancia), min(larg, base + tolerancia + 1)):
+            if linha_de_grade(op[:, x], lum[:, x]):
+                out[:, x, 3] = 0
 
     return out
 
@@ -604,9 +607,12 @@ def _fatiar_inimigo(nome, cfg):
        própria altura faria o Slime crescer e encolher durante a animação, e
        ancorar pelo centro o faria flutuar.
     """
+    colunas = cfg.get("colunas", 4)
+    linhas = cfg.get("linhas", 4)
+
     folha = _rgba_croma(UPLOADS / SRC[cfg["chave"]], isolar=False)
-    lado = folha.shape[0] // 4
-    folha = _remover_grade(folha, lado)
+    lado = folha.shape[1] // colunas
+    folha = _remover_grade(folha, lado, colunas, linhas)
 
     # Apara a moldura de cada célula.
     #
@@ -615,7 +621,7 @@ def _fatiar_inimigo(nome, cfg):
     margem = round(lado * 0.02)
 
     recortes = [_extrair_quadro(folha, lado, linha, coluna, margem)
-                for linha in range(4) for coluna in range(4)]
+                for linha in range(linhas) for coluna in range(colunas)]
 
     altura_maxima = max(r.shape[0] for r in recortes if r is not None)
     escala = cfg["alt"] / altura_maxima
@@ -623,7 +629,7 @@ def _fatiar_inimigo(nome, cfg):
 
     destino = OUT / "sprites" / BIOMA
     destino.mkdir(parents=True, exist_ok=True)
-    folha_final = Image.new("RGBA", (celula * 4, celula * 4), (0, 0, 0, 0))
+    folha_final = Image.new("RGBA", (celula * colunas, celula * linhas), (0, 0, 0, 0))
 
     for i, recorte in enumerate(recortes):
         if recorte is None:
@@ -634,11 +640,12 @@ def _fatiar_inimigo(nome, cfg):
         topo = (celula - 6 - h) if cfg["ancora"] == "chao" else (celula - h) // 2
         folha_final.alpha_composite(
             im,
-            ((i % 4) * celula + (celula - w) // 2, (i // 4) * celula + topo),
+            ((i % colunas) * celula + (celula - w) // 2,
+             (i // colunas) * celula + topo),
         )
 
     folha_final.save(destino / f"{nome}.png")
-    print(f"  {nome}: 4x4 células de {celula}px")
+    print(f"  {nome}: {colunas}x{linhas} células de {celula}px")
 
 
 if __name__ == "__main__":

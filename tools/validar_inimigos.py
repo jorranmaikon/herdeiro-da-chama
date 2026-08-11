@@ -25,7 +25,7 @@ from PIL import Image
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = RAIZ / "src" / "data" / "enemiesConfig.js"
-PRELOAD = RAIZ / "src" / "scenes" / "PreloadScene.js"
+PIPELINE = RAIZ / "tools" / "build_assets_bosque.py"
 SPRITES = RAIZ / "public" / "assets" / "sprites" / "bosque"
 
 
@@ -42,6 +42,9 @@ def ler_configuracoes():
         if not textura or not celula:
             continue
 
+        colunas = re.search(r"colunas:\s*(\d+)", bloco)
+        linhas = re.search(r"linhas:\s*(\d+)", bloco)
+
         quadros = set()
         for lista in re.findall(r"quadros:\s*\[([\d,\s]+)\]", bloco):
             quadros.update(int(n) for n in re.findall(r"\d+", lista))
@@ -49,6 +52,8 @@ def ler_configuracoes():
         saida[nome] = {
             "textura": textura.group(1),
             "celula": int(celula.group(1)),
+            "colunas": int(colunas.group(1)) if colunas else 4,
+            "linhas": int(linhas.group(1)) if linhas else 4,
             "quadros": sorted(quadros),
         }
     return saida
@@ -69,8 +74,26 @@ def ler_catalogo():
     }
 
 
-def quadro_vazio(imagem, celula, indice):
-    linha, coluna = divmod(indice, 4)
+def ler_pipeline():
+    """Grade que o pipeline usa ao fatiar cada folha.
+
+    Se o pipeline montar 4x4 e a configuração esperar 4x7, os dois números
+    batem com a imagem e mesmo assim o jogo quebra — por isso a checagem
+    cruzada.
+    """
+    texto = PIPELINE.read_text(encoding="utf-8")
+    bloco = texto.split("INIMIGOS = {")[1].split("\n}")[0]
+    saida = {}
+    for nome, corpo in re.findall(r'"(\w+)":\s*\{([^}]*)\}', bloco):
+        colunas = re.search(r'"colunas":\s*(\d+)', corpo)
+        linhas = re.search(r'"linhas":\s*(\d+)', corpo)
+        saida[nome] = (int(colunas.group(1)) if colunas else 4,
+                       int(linhas.group(1)) if linhas else 4)
+    return saida
+
+
+def quadro_vazio(imagem, celula, colunas, indice):
+    linha, coluna = divmod(indice, colunas)
     recorte = imagem[
         linha * celula:(linha + 1) * celula,
         coluna * celula:(coluna + 1) * celula,
@@ -82,16 +105,26 @@ def quadro_vazio(imagem, celula, indice):
 def validar():
     configuracoes = ler_configuracoes()
     catalogo = ler_catalogo()
+    pipeline = ler_pipeline()
     problemas = []
 
     for nome, cfg in configuracoes.items():
         celula = cfg["celula"]
+        colunas, linhas = cfg["colunas"], cfg["linhas"]
 
         if nome not in catalogo:
             problemas.append(f"{nome}: nao esta em FOLHAS_DE_INIMIGO, entao nunca e carregado")
             continue
 
         arquivo = catalogo[nome]
+
+        grade_pipeline = pipeline.get(arquivo)
+        if grade_pipeline and grade_pipeline != (colunas, linhas):
+            problemas.append(
+                f"{nome}: pipeline monta {grade_pipeline[0]}x{grade_pipeline[1]}, "
+                f"configuracao espera {colunas}x{linhas}"
+            )
+
         caminho = SPRITES / f"{arquivo}.png"
         if not caminho.exists():
             problemas.append(f"{nome}: arquivo {caminho.name} nao existe")
@@ -100,25 +133,29 @@ def validar():
         imagem = np.array(Image.open(caminho).convert("RGBA"))
         altura, largura = imagem.shape[:2]
 
-        if largura % 4 or altura % 4:
-            problemas.append(f"{nome}: folha {largura}x{altura} nao e divisivel por 4")
-            continue
-
-        if largura // 4 != celula or altura // 4 != celula:
+        if largura // colunas != celula or altura // linhas != celula:
             problemas.append(
-                f"{nome}: folha {largura}x{altura} da celula de {largura // 4}px, "
+                f"{nome}: folha {largura}x{altura} em grade {colunas}x{linhas} da "
+                f"celula de {largura // colunas}x{altura // linhas}px, "
                 f"mas a configuracao diz {celula}px"
             )
             continue
 
-        vazios = [i for i in cfg["quadros"] if quadro_vazio(imagem, celula, i)]
+        maior = colunas * linhas - 1
+        fora = [i for i in cfg["quadros"] if i > maior]
+        if fora:
+            problemas.append(f"{nome}: animacoes citam quadros inexistentes: {fora}")
+            continue
+
+        vazios = [i for i in cfg["quadros"]
+                  if quadro_vazio(imagem, celula, colunas, i)]
         if vazios:
             problemas.append(f"{nome}: quadros usados em animacao estao vazios: {vazios}")
 
     for nome, cfg in sorted(configuracoes.items()):
         marca = "ok " if not any(nome in p for p in problemas) else "FALHA"
-        print(f"  [{marca}] {nome}: celula {cfg['celula']}px, "
-              f"{len(cfg['quadros'])} quadros usados")
+        print(f"  [{marca}] {nome}: grade {cfg['colunas']}x{cfg['linhas']}, "
+              f"celula {cfg['celula']}px, {len(cfg['quadros'])} quadros usados")
 
     if problemas:
         print("\nPROBLEMAS:")

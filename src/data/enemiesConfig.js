@@ -196,63 +196,65 @@ export const GOBLIN = {
 export const URSO = {
   textura: 'urso_bosque',
   celula: 400,
+  // Sete linhas de animação em vez de quatro: ele tem mais ações que os
+  // Comuns. O padrão, quando omitido, é 4x4.
+  colunas: 4,
+  linhas: 7,
 
-  corpoW: 290,
-  corpoH: 164,
+  corpoW: 300,
+  corpoH: 175,
 
-  vida: 12,
+  vida: 14,
   dano: 1,          // ~1,5 unidade na régua do 05_BALANCEAMENTO.md, Seção 2
 
-  padrao: 'telegrafado',    // só machuca durante o próprio golpe
-  velocidade: 110,
+  velocidade: 120,
   alcanceDeteccao: 1200,    // a arena inteira
-  alcanceAtaque: 620,       // daqui para dentro ele já ataca
 
-  // Perto ele pisa, longe ele investe. Entre os dois, alterna.
-  alcancePisada: 300,
-  alcanceInvestida: 380,
-  previsaoS: 0.34,          // mira onde o jogador vai estar, não onde está
+  // --- Golpe de pata, executado ANDANDO -------------------------------
+  // Ele nunca ataca parado: um chefe que trava no lugar para bater vira um
+  // poste, e era isso que o fazia errar o alvo. O corpo continua avançando
+  // durante todo o golpe.
+  alcanceGarra: 300,
+  telegrafoGarraMs: 260,    // curto: é o ataque de punição, quase sem aviso
+  duracaoGarraMs: 520,
+  velocidadeGarra: 230,     // o avanço durante o golpe
+  larguraGarra: 90,
 
-  telegrafoInvestidaMs: 620,
-  // A investida é uma travessia: ele atravessa boa parte da arena e machuca
-  // quem estiver no caminho. 620px/s por 1s cobre quase 10 tiles.
-  velocidadeInvestida: 620,
-  duracaoInvestidaMs: 1000,
-  larguraInvestida: 70,     // folga lateral do atropelo, além do corpo
+  // --- Salto ----------------------------------------------------------
+  // Substitui a investida reta. O arco cai ONDE o jogador está em vez de
+  // passar reto por ele, e a aterrissagem já é o ataque de área.
+  alcanceSalto: 340,        // daqui para longe ele salta
+  telegrafoSaltoMs: 620,    // agachado, comprimindo — o aviso
+  impulsoSalto: -900,
+  velocidadeSalto: 380,
+  previsaoS: 0.42,          // mira onde o jogador vai estar, não onde está
+  raioImpacto: 520,         // a onda de choque da aterrissagem
 
-  telegrafoPisadaMs: 720,   // mais longo: é o ataque de área, precisa ser lido
-  duracaoPisadaMs: 420,
-  // Quase toda a largura da tela. O ataque não é para ser desviado andando —
-  // a saída é estar NO AR quando ele acontece, e é isso que o telegraph longo
-  // dá tempo de fazer.
-  raioPisada: 560,
+  // --- Rugido ---------------------------------------------------------
+  // Marco, não fase de vida: não causa dano, e depois dele os intervalos
+  // entre ataques encurtam.
+  rugidoEmVida: 0.5,
+  duracaoRugidoMs: 900,
+  aceleracaoAposRugido: 0.7,
 
-  recuperacaoMs: 900,       // a abertura do jogador, depois de cada padrão
+  recuperacaoMs: 820,       // a abertura do jogador, depois de cada padrão
   esperaAlertaMs: 300,
   knockback: 120,           // pesado: quase não recua
 
+  // Folha de 4 colunas por 7 linhas — 28 quadros.
   animacoes: {
     idle:     { quadros: [0, 1, 2, 3], taxa: 5, repetir: -1 },
-    andar:    { quadros: [0, 1, 2, 3], taxa: 8, repetir: -1 },
-    preparar: { quadros: [4, 5, 6], taxa: 5, repetir: -1 },
-    investir: { quadros: [7], taxa: 1 },
-    erguer:   { quadros: [8, 9], taxa: 4, repetir: -1 },
-    pisar:    { quadros: [10, 11], taxa: 9 },
-    dano:     { quadros: [12, 13], taxa: 9 },
-    morte:    { quadros: [14, 15], taxa: 6 },
+    andar:    { quadros: [4, 5, 6, 7], taxa: 8, repetir: -1 },
+    garra:    { quadros: [8, 9, 10, 11], taxa: 9 },
+    agachar:  { quadros: [12, 13, 14, 15], taxa: 7 },
+    saltar:   { quadros: [16, 17, 18], taxa: 8 },
+    aterrar:  { quadros: [19], taxa: 1 },
+    rugir:    { quadros: [20, 21], taxa: 3 },
+    dano:     { quadros: [22, 23], taxa: 9 },
+    morte:    { quadros: [24, 25, 26, 27], taxa: 6 },
   },
 };
 
-// Catálogo de folhas de sprite dos inimigos — FONTE ÚNICA do tamanho de célula.
-//
-// Antes o tamanho aparecia duas vezes: aqui, em `celula`, e de novo no
-// PreloadScene, no frameWidth do carregamento. Quando o Urso cresceu, um foi
-// atualizado e o outro não; o Phaser passou a fatiar a folha na régua errada e
-// os quadros viraram pedaços vazios. O inimigo sumiu do jogo sem uma linha de
-// erro no console.
-//
-// Com o carregamento derivando desta lista, os dois números não têm como
-// divergir: existe só um.
 export const FOLHAS_DE_INIMIGO = [
   { arquivo: 'slime', cfg: SLIME },
   { arquivo: 'lobo', cfg: LOBO },

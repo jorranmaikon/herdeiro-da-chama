@@ -171,69 +171,107 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     // A Pisada bate em ÁREA ao redor, com telegraph antes (o quadro erguido).
     // Não é contato: acerta mesmo quem está ao lado, e é por isso que ela
     // obriga o jogador a se afastar em vez de rolar por baixo.
-    urso.aoPisar = () => this.resolverPisada(urso);
-    urso.aoInvestir = () => this.resolverInvestida(urso);
+    urso.aoAterrar = () => this.resolverImpacto(urso);
+    urso.aoGolpearComGarra = () => this.resolverGarra(urso);
+    urso.aoRugir = () => this.cameras.main.shake(500, 0.006);
     return urso;
   }
 
-  resolverPisada(urso) {
-    this.cameras.main.shake(300, 0.014);
-    this.ondaDeChoque(urso);
+  // Impacto da aterrissagem: onda de choque no chão.
+  //
+  // Quem está NO AR escapa — é a saída que o ataque deixa em aberto, e o que
+  // faz dele um ataque legível em vez de um imposto. O telegraph do
+  // agachamento existe justamente para dar tempo de pular.
+  resolverImpacto(urso) {
+    this.cameras.main.shake(320, 0.016);
+    this.poeiraDeImpacto(urso);
 
     if (this.player.isDead || this.player.invulnerable) return;
 
-    // A pisada bate em ÁREA no CHÃO: pega quem estiver perto, esteja
-    // encostado ou não. Quem está no ar escapa — é a saída que o ataque
-    // deixa em aberto, e o que faz dele um ataque legível em vez de um
-    // imposto.
     const noAr = !(this.player.body.blocked.down || this.player.body.touching.down);
     if (noAr) return;
 
-    const dx = Math.abs(this.player.x - urso.x);
-    if (dx > urso.cfg.raioPisada) return;
-
+    if (Math.abs(this.player.x - urso.x) > urso.cfg.raioImpacto) return;
     this.player.hurt(this.player.x < urso.x ? -1 : 1);
   }
 
-  // Anel de poeira que se abre a partir das patas. Não é enfeite: é o que
-  // comunica o alcance real do ataque, que é maior que o corpo do Urso.
-  ondaDeChoque(urso) {
-    const y = urso.body.bottom - 6;
+  // Poeira. Três camadas com tempos diferentes, porque uma nuvem única lê como
+  // um retângulo crescendo: as nuvens baixas e rápidas dão o impacto, as altas
+  // e lentas dão o peso do bicho.
+  poeiraDeImpacto(urso) {
+    const solo = urso.body.bottom - 4;
+    const cor = 0xcdbb95;
 
     [-1, 1].forEach((lado) => {
-      const onda = this.add
-        .rectangle(urso.x, y, 10, 26, 0xd9c9a6, 0.75)
+      // Frente de poeira correndo rente ao chão.
+      const frente = this.add
+        .ellipse(urso.x, solo, 40, 22, cor, 0.7)
         .setOrigin(lado < 0 ? 1 : 0, 1)
+        .setDepth(-2);
+      this.tweens.add({
+        targets: frente,
+        width: urso.cfg.raioImpacto,
+        height: 46,
+        alpha: 0,
+        duration: 420,
+        ease: 'Cubic.easeOut',
+        onComplete: () => frente.destroy(),
+      });
+
+      // Tufos soltos, subindo e abrindo em ritmos diferentes.
+      for (let i = 0; i < 4; i++) {
+        const distancia = 70 + i * 90;
+        const tufo = this.add
+          .circle(urso.x + lado * 30, solo - 6, 12 + i * 4, cor, 0.55)
+          .setDepth(-2);
+
+        this.tweens.add({
+          targets: tufo,
+          x: urso.x + lado * distancia,
+          y: solo - 30 - i * 14,
+          scale: 2.1,
+          alpha: 0,
+          duration: 480 + i * 90,
+          ease: 'Quad.easeOut',
+          onComplete: () => tufo.destroy(),
+        });
+      }
+    });
+
+    // Pedrinhas saltando: detalhe pequeno que vende o peso do impacto.
+    for (let i = 0; i < 6; i++) {
+      const lado = i % 2 ? 1 : -1;
+      const pedrinha = this.add
+        .rectangle(urso.x + lado * 20, solo - 8, 6, 6, 0x8c7f63, 0.9)
         .setDepth(-2);
 
       this.tweens.add({
-        targets: onda,
-        width: urso.cfg.raioPisada,
+        targets: pedrinha,
+        x: pedrinha.x + lado * (90 + i * 40),
+        y: solo - 90 - i * 10,
         alpha: 0,
-        duration: 320,
-        ease: 'Cubic.easeOut',
-        onComplete: () => onda.destroy(),
+        duration: 380 + i * 40,
+        ease: 'Quad.easeOut',
+        onComplete: () => pedrinha.destroy(),
       });
-    });
+    }
   }
 
-  // A investida ATROPELA: acerta quem estiver na faixa horizontal do corpo,
-  // sem exigir sobreposição exata de corpos. Depender do overlap de física
-  // fazia o Urso passar por dentro do jogador em alguns frames sem registrar
-  // nada, porque a 620px/s ele percorre 10px por frame e o teste podia cair
-  // fora da janela de contato.
-  resolverInvestida(urso) {
+  // Golpe de pata: acerta a faixa à frente do corpo, avaliado a cada frame
+  // enquanto ele avança golpeando.
+  resolverGarra(urso) {
     if (this.player.isDead || this.player.invulnerable) return;
 
     const corpo = urso.body;
-    const alcance = corpo.halfWidth + urso.cfg.larguraInvestida;
-    if (Math.abs(this.player.body.center.x - corpo.center.x) > alcance) return;
+    const frente = urso.flipX ? -1 : 1;
+    const inicio = frente > 0 ? corpo.right : corpo.left - urso.cfg.larguraGarra;
+    const fim = inicio + urso.cfg.larguraGarra;
 
-    // Verticalmente basta haver sobreposição: ele é alto o bastante para pegar
-    // quem está pulando baixo.
-    if (this.player.body.bottom < corpo.top || this.player.body.top > corpo.bottom) return;
+    const alvo = this.player.body;
+    if (alvo.right < Math.min(inicio, fim) || alvo.left > Math.max(inicio, fim)) return;
+    if (alvo.bottom < corpo.top || alvo.top > corpo.bottom) return;
 
-    this.player.hurt(this.player.body.center.x < corpo.center.x ? -1 : 1);
+    this.player.hurt(frente);
   }
 
   // --------------------------------------------------------------------

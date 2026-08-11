@@ -2,19 +2,25 @@ import Enemy, { ESTADO } from './Enemy.js';
 
 // Mini-Boss (04_BESTIARIO_MACRO.md, Seções 1 e 5).
 //
-// Encerra uma sub-seção do bioma. Combina padrões já vistos com uma variação
-// nova, e alterna entre DOIS padrões de ataque — é isso que o separa de um
-// Comum, não a quantidade de vida.
+// Encerra uma sub-seção do bioma, combina padrões já vistos com uma variação
+// nova e alterna entre padrões de ataque — é isso que o separa de um Comum,
+// não a quantidade de vida.
 //
 // A máquina de estados continua sendo a da classe-base: esta subclasse só
-// escolhe qual padrão executar e conduz cada um. Nenhum mini-boss futuro
-// precisa de classe nova — muda a configuração de dados.
+// escolhe qual padrão executar e conduz cada um.
+//
+// REGRA DE OURO DESTE CHEFE: ele nunca ataca parado. Todo golpe acontece em
+// movimento — avançando a pé, no golpe de pata, ou no ar, no salto. Um chefe
+// que trava no lugar para bater vira um poste e erra o alvo.
 export default class EnemyMiniBoss extends Enemy {
   constructor(scene, x, y, cfg) {
     super(scene, x, y, cfg);
 
     this.padraoAtual = null;
     this.ultimoPadrao = null;
+    this.jaRugiu = false;
+    this.ritmo = 1;          // multiplica os tempos; cai após o rugido
+    this.noAr = false;
   }
 
   comportamento(time, player) {
@@ -39,91 +45,116 @@ export default class EnemyMiniBoss extends Enemy {
       return;
     }
 
-    // Perseguindo: anda até a distância de ataque e escolhe um padrão.
-    this.setFlipX(this.direcao < 0);
-
-    if (this.distanciaAoJogador > this.cfg.alcanceAtaque) {
-      this.setVelocityX(this.direcao * this.cfg.velocidade);
-      this.tocar('andar');
+    // Rugido: marco de metade da vida. Interrompe o que estiver fazendo,
+    // sinaliza que a luta mudou e acelera os padrões daí em diante.
+    if (!this.jaRugiu && this.vida <= this.cfg.vida * this.cfg.rugidoEmVida) {
+      this.jaRugiu = true;
+      this.ritmo = this.cfg.aceleracaoAposRugido;
+      this.estado = ESTADO.RECUPERAR;
+      this.proximaAcaoEm = time + this.cfg.duracaoRugidoMs;
+      this.setVelocityX(0);
+      this.tocar('rugir', true);
+      this.aoRugir?.();
       return;
     }
 
+    this.setFlipX(this.direcao < 0);
     this.iniciarPadrao(time);
   }
 
-  // Alterna os padrões em vez de sortear.
-  //
-  // Sorteio puro repete o mesmo ataque três vezes seguidas com frequência
-  // incômoda, e o jogador não consegue aprender a leitura — a alternância
-  // garante que os dois apareçam e mantém a luta legível.
+  // Longe ele salta, perto ele dá a patada. A escolha é por DISTÂNCIA porque
+  // alternar cegamente fazia o chefe saltar estando colado e dar patada do
+  // outro lado da arena — atacando o vento nos dois casos.
   iniciarPadrao(time) {
-    // A escolha respeita a DISTÂNCIA antes da alternância.
-    //
-    // Alternar cegamente fazia o Urso pisar o chão a dois corpos de distância
-    // e investir estando colado — atacava o vento nos dois casos. Perto, ele
-    // pisa; longe, ele investe, porque a investida é o que percorre espaço.
-    // Entre os dois extremos vale a alternância, que mantém a luta legível.
-    let proximo;
-    if (this.distanciaAoJogador <= this.cfg.alcancePisada) proximo = 'pisada';
-    else if (this.distanciaAoJogador >= this.cfg.alcanceInvestida) proximo = 'investida';
-    else proximo = this.ultimoPadrao === 'investida' ? 'pisada' : 'investida';
-    this.padraoAtual = proximo;
-    this.ultimoPadrao = proximo;
+    const longe = this.distanciaAoJogador > this.cfg.alcanceSalto;
+    this.padraoAtual = longe ? 'salto' : 'garra';
+    this.ultimoPadrao = this.padraoAtual;
 
     this.estado = ESTADO.ATACAR;
-    this.setVelocityX(0);
-    this.tocar(proximo === 'investida' ? 'preparar' : 'erguer', true);
-    this.proximaAcaoEm = time + this.cfg[
-      proximo === 'investida' ? 'telegrafoInvestidaMs' : 'telegrafoPisadaMs'
-    ];
     this.faseDoPadrao = 'telegrafo';
+    this.setVelocityX(0);
+
+    if (longe) {
+      this.tocar('agachar', true);
+      this.proximaAcaoEm = time + this.cfg.telegrafoSaltoMs * this.ritmo;
+    } else {
+      this.tocar('garra', true);
+      this.proximaAcaoEm = time + this.cfg.telegrafoGarraMs * this.ritmo;
+    }
   }
 
   conduzirPadrao(time, player) {
-    // O atropelo é testado a cada frame enquanto ele avança.
-    if (this.investindo) this.aoInvestir?.();
+    if (this.padraoAtual === 'garra' && this.faseDoPadrao === 'golpe') {
+      // Avança enquanto golpeia — o corpo não para.
+      this.setVelocityX(this.direcao * this.cfg.velocidadeGarra);
+      this.aoGolpearComGarra?.();
+    }
+
+    if (this.faseDoPadrao === 'voo') {
+      this.conduzirSalto(time);
+      return;
+    }
 
     if (time < this.proximaAcaoEm) {
-      // Telegraph: parado. Um ataque telegrafado em movimento não telegrafa.
-      this.setVelocityX(0);
+      if (this.faseDoPadrao === 'telegrafo') this.setVelocityX(0);
       return;
     }
 
     if (this.faseDoPadrao === 'telegrafo') {
-      this.faseDoPadrao = 'golpe';
+      this.faseDoPadrao = this.padraoAtual === 'salto' ? 'voo' : 'golpe';
       this.golpeAtivo = true;
 
-      if (this.padraoAtual === 'investida') {
-        // A investida é a única que se desloca: é a versão maior e mais lenta
-        // da investida do Lobo, e o jogador já sabe lê-la.
-        //
-        // ANTECIPAÇÃO: ele mira onde o jogador VAI ESTAR, não onde está. Sem
-        // isso bastava andar para o lado durante o telegraph e a investida
-        // passava reto — o ataque virava decorativo. Com previsão, fugir na
-        // horizontal deixa de funcionar e a saída passa a ser o tempo: esperar
-        // e desviar no último instante.
-        const alvoX = player.x + player.body.velocity.x * this.cfg.previsaoS;
-        this.direcao = alvoX < this.x ? -1 : 1;
-        this.setFlipX(this.direcao < 0);
-        this.setVelocityX(this.direcao * this.cfg.velocidadeInvestida);
-        this.tocar('investir', true);
-        this.proximaAcaoEm = time + this.cfg.duracaoInvestidaMs;
-        this.investindo = true;
-      } else {
-        // A pisada acontece no lugar e bate em ÁREA ao redor.
-        this.setVelocityX(0);
-        this.tocar('pisar', true);
-        this.proximaAcaoEm = time + this.cfg.duracaoPisadaMs;
-        this.aoPisar?.();
-      }
+      if (this.padraoAtual === 'salto') this.decolar(player);
+      else this.proximaAcaoEm = time + this.cfg.duracaoGarraMs * this.ritmo;
       return;
     }
 
+    this.encerrarPadrao(time);
+  }
+
+  decolar(player) {
+    // Mira onde o jogador VAI ESTAR. Sem isso bastava andar para o lado
+    // durante o agachamento e o salto caía no vazio.
+    const alvoX = player.x + player.body.velocity.x * this.cfg.previsaoS;
+    this.direcao = alvoX < this.x ? -1 : 1;
+    this.setFlipX(this.direcao < 0);
+
+    // A velocidade horizontal é a necessária para cobrir a distância no tempo
+    // que ele vai passar no ar, limitada pelo máximo do bicho — um urso não
+    // acelera indefinidamente só porque o alvo está longe.
+    const tempoDeVoo = (2 * Math.abs(this.cfg.impulsoSalto)) / this.scene.physics.world.gravity.y;
+    const distancia = Math.abs(alvoX - this.x);
+    const velocidade = Math.min(this.cfg.velocidadeSalto, distancia / tempoDeVoo);
+
+    this.setVelocity(this.direcao * velocidade, this.cfg.impulsoSalto);
+    this.noAr = true;
+    this.tocar('saltar', true);
+  }
+
+  // A aterrissagem é detectada pelo CONTATO com o chão, não por temporizador:
+  // a altura do terreno varia, e um tempo fixo faria a onda de choque sair no
+  // ar ou tarde demais.
+  conduzirSalto(time) {
+    const tocouChao = this.body.blocked.down || this.body.touching.down;
+    if (this.noAr && !tocouChao) return;
+
+    if (this.noAr && tocouChao) {
+      this.noAr = false;
+      this.setVelocityX(0);
+      this.tocar('aterrar', true);
+      this.aoAterrar?.();
+      this.proximaAcaoEm = time + 220;
+      return;
+    }
+
+    if (time >= this.proximaAcaoEm) this.encerrarPadrao(time);
+  }
+
+  encerrarPadrao(time) {
     this.setVelocityX(0);
     this.golpeAtivo = false;
-    this.investindo = false;
     this.estado = ESTADO.RECUPERAR;
-    this.proximaAcaoEm = time + this.cfg.recuperacaoMs;
+    this.proximaAcaoEm = time + this.cfg.recuperacaoMs * this.ritmo;
     this.tocar('idle');
   }
 }
