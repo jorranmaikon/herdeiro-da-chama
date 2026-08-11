@@ -83,7 +83,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   conferirFolha(scene) {
     const textura = scene.textures.get(this.cfg.textura);
     const fonte = textura.getSourceImage();
-    const esperado = fonte.width / 4;
+    const esperado = fonte.width / (this.cfg.colunas || 4);
 
     if (esperado !== this.cfg.celula) {
       console.error(

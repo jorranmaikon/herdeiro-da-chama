@@ -1,4 +1,29 @@
 import Phaser from 'phaser';
+
+// Erro em tempo de execucao mata o loop do Phaser e o jogo simplesmente
+// congela — com a musica tocando, porque o audio roda fora do loop. Isso ja
+// custou horas de diagnostico as cegas. Agora a mensagem aparece na tela.
+function mostrarErroNaTela(mensagem) {
+  let caixa = document.getElementById('erro-runtime');
+  if (!caixa) {
+    caixa = document.createElement('pre');
+    caixa.id = 'erro-runtime';
+    caixa.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;'
+      + 'margin:0;padding:10px;max-height:45vh;overflow:auto;'
+      + 'background:#2a0f0fee;color:#ffd7d7;font:12px/1.4 monospace;'
+      + 'white-space:pre-wrap;border-top:2px solid #d88';
+    caixa.onclick = () => caixa.remove();
+    document.body.appendChild(caixa);
+  }
+  caixa.textContent = `${mensagem}\n\n(toque para fechar)`;
+}
+
+window.addEventListener('error', (evento) => {
+  mostrarErroNaTela(`${evento.message}\n${evento.error?.stack || ''}`);
+});
+window.addEventListener('unhandledrejection', (evento) => {
+  mostrarErroNaTela(`Promessa rejeitada: ${evento.reason?.stack || evento.reason}`);
+});
 import { GAME_WIDTH, GAME_HEIGHT, GRAVITY } from './config/gameConfig.js';
 import AudioManager from './managers/AudioManager.js';
 import PreloadScene from './scenes/PreloadScene.js';

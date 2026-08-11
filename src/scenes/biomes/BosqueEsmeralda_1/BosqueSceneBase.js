@@ -173,6 +173,20 @@ export default class BosqueSceneBase extends BiomeSceneBase {
     }
   }
 
+  // Destrói um objeto MATANDO ANTES os tweens dele.
+  //
+  // O Phaser não cancela tweens ao destruir o alvo: um tween infinito continua
+  // rodando e, no frame seguinte, tenta animar um objeto que já não existe —
+  // exceção, update da cena morto, jogo travado com a música tocando.
+  //
+  // Foi o que derrubou a luta do Guardião: a marca das raízes e a sombra do
+  // mergulho piscam em loop e são descartadas quando o ataque acaba.
+  descartar(objeto) {
+    if (!objeto) return;
+    this.tweens.killTweensOf(objeto);
+    objeto.destroy();
+  }
+
   // --------------------------------------------------------------------
   // Boss (04_BESTIARIO_MACRO.md, Seções 5 e 6)
   // --------------------------------------------------------------------
@@ -214,7 +228,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
       this.tweens.add({ targets: marca, alpha: 0.3, yoyo: true, repeat: -1, duration: 180 });
 
       this.time.delayedCall(cfg.avisoMs, () => {
-        marca.destroy();
+        this.descartar(marca);
         this.erguerRaiz(chefe, x, y);
       });
     }
@@ -317,7 +331,7 @@ export default class BosqueSceneBase extends BiomeSceneBase {
   recolherSombra() {
     if (!this.sombra) return undefined;
     const x = this.sombra.x;
-    this.sombra.destroy();
+    this.descartar(this.sombra);
     this.sombra = null;
     return x;
   }
